@@ -1,0 +1,51 @@
+{
+  "name": "powershell-discord-bridge",
+  "version": "0.1.0",
+  "productName": "PowerShell Discord Bridge",
+  "private": false,
+  "description": "Electron app for operating a local PowerShell terminal from Discord.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/harunamitrader/powershell-discord-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/harunamitrader/powershell-discord-bridge/issues"
+  },
+  "homepage": "https://github.com/harunamitrader/powershell-discord-bridge#readme",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "clean": "rimraf dist dist-electron",
+    "dev": "concurrently -k -n MAIN,RENDERER,ELECTRON -c blue,green,magenta \"npm:dev:main\" \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:main": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 file:dist-electron/main/index.js file:dist-electron/preload/index.js && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron .",
+    "build": "npm run clean && npm run build:electron && npm run build:renderer",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:renderer": "vite build",
+    "start": "cross-env NODE_ENV=production electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.12",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/headless": "^5.5.0",
+    "@xterm/xterm": "^5.5.0",
+    "discord.js": "^14.26.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.8.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^31.7.7",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10",
+    "wait-on": "^8.0.5"
+  }
+}
