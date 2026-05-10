@@ -6,3 +6,4 @@ data/
 coverage/
 *.log
 *.tmp
+docs/internal/

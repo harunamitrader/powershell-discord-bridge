@@ -1,82 +1,196 @@
 # PowerShell Discord Bridge
 
-PowerShell Discord Bridge is an Electron app for operating a local PowerShell terminal from Discord while keeping the terminal visible in a desktop UI.
+PowerShell Discord Bridge は、**自分の Windows PC 上の PowerShell を Discord から操作するためのデスクトップアプリ**です。  
+Discord に送ったメッセージを PowerShell に渡し、返ってきた結果を Discord に返します。アプリ側では同じセッションの画面を見続けられるので、「今 PC 上で何が動いているか」を確認しながら使えます。
 
-## What it does
+> **大事な前提**
+>
+> このツールは **あなたの PC 上で PowerShell を実行します**。  
+> つまり、許可した Discord ユーザー / チャンネルから送られた内容は、あなたの PC に対する操作になります。公開サーバーに入れる汎用 bot ではなく、**自分用・小規模運用向けのローカルツール**として考えてください。
 
-- runs local PowerShell sessions inside an Electron app
-- binds one Discord channel to one bridge-managed terminal session
-- relays terminal input from Discord to the local PowerShell process
-- returns terminal output back to Discord
-- captures app-window screenshots on demand with `[[terminal:screenshot]]`
-- keeps a local desktop session and a Discord bridge session side by side
+## できること
 
-## Current scope
+- Discord の 1 チャンネルを 1 つの PowerShell セッションにひも付ける
+- Discord に送った文章を、そのまま PowerShell 側へ入力する
+- 実行結果の差分を Discord に返信する
+- `[[terminal:screenshot]]` で **アプリ画面全体のスクリーンショット**を Discord に返す
+- アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
-- Windows host
-- PowerShell-only terminal backend
-- Discord bot driven bridge workflow
-- Electron desktop UI for local inspection and control
+## 現在の制限
 
-This project does **not** currently support non-PowerShell shells such as cmd, bash, zsh, or WSL.
+- **Windows 専用**
+- **PowerShell 専用**
+- Discord の slash command ではなく、通常メッセージ入力ベース
+- 複数のシェル（cmd / bash / zsh / WSL など）は未対応
+- インストーラー付き配布ではなく、**現時点ではソースコードから起動**する形
 
-## Main commands
+## 先に用意するもの
 
-- normal Discord messages: sent to the active bridge-managed PowerShell session
-- `[[terminal:enter]]`
-- `[[terminal:ctrl-c]]`
-- `[[terminal:esc]]`
-- `[[terminal:stop]]`
-- `[[terminal:screenshot]]` - replies with an app-window screenshot attachment
+導入前に、次の 4 つを用意してください。
 
-## Local development
+1. **Windows PC**
+2. **Node.js 20 以降**
+3. **Discord アカウント**
+4. **自分で管理できる Discord サーバー**
 
-1. Copy `.env.example` to `.env`
-2. Fill in the Discord bot and allowlist values
-3. Install dependencies
-4. Start the app
+PowerShell は Windows 標準版でも動きますが、**PowerShell 7** を入れておくことをおすすめします。
 
-```powershell
-npm install
-npm run dev
-```
+## 導入手順
 
-For a production-style local run:
+### 1. このリポジトリを PC に置く
+
+Git を使う場合:
 
 ```powershell
-npm run build
-npm start
+git clone https://github.com/harunamitrader/powershell-discord-bridge.git
+cd powershell-discord-bridge
 ```
 
-Or use the helper launcher:
+Git を使わない場合は、GitHub の **Code > Download ZIP** からダウンロードして、わかりやすい場所に展開してください。
+
+### 2. Discord Bot を作る
+
+1. Discord Developer Portal を開く
+2. **New Application** で新しいアプリを作る
+3. **Bot** を追加する
+4. Bot Token を発行して控える
+5. **MESSAGE CONTENT INTENT** を有効にする
+6. OAuth2 の URL Generator から bot 招待 URL を作り、自分の Discord サーバーへ招待する
+
+最低限、Bot には次の権限が必要です。
+
+- 対象チャンネルを見る
+- メッセージを読む
+- メッセージを送る
+- ファイルを添付する
+- リアクションを付ける
+
+### 3. Discord で ID をコピーできるようにする
+
+Discord の **設定 > 詳細設定 > 開発者モード** を ON にしてください。  
+これで、ユーザー ID やチャンネル ID を右クリックからコピーできるようになります。
+
+必要なのは次の ID です。
+
+- **あなた自身のユーザー ID**
+- **この bot を使いたいチャンネルの ID**
+
+## 4. 設定ファイルを作る
+
+このフォルダで `.env.example` をコピーして `.env` を作ります。
+
+```powershell
+Copy-Item .env.example .env
+```
+
+`.env` をメモ帳などで開いて、最低限ここを書き換えてください。
+
+```env
+DISCORD_BOT_TOKEN=ここにBotトークン
+ALLOW_USER_IDS=ここにあなたのDiscordユーザーID
+ALLOW_CHANNEL_IDS=ここに許可したいDiscordチャンネルID
+```
+
+複数のユーザー / チャンネルを許可したい場合は、カンマ区切りで書けます。
+
+```env
+ALLOW_USER_IDS=123456789012345678,234567890123456789
+ALLOW_CHANNEL_IDS=345678901234567890,456789012345678901
+```
+
+### 補足
+
+- `.env` はアプリ起動時に自動で読み込まれます
+- 以前の名前 (`DISCORD_ALLOWED_USER_ID`, `DISCORD_ALLOWED_CHANNEL_IDS`) も互換のため読み取れますが、**これから設定する場合は `ALLOW_USER_IDS` / `ALLOW_CHANNEL_IDS` を使ってください**
+
+## 5. 初回起動
+
+一番簡単なのは、プロジェクト直下の次のファイルを実行する方法です。
 
 ```powershell
 .\launch-powershell-discord-bridge.cmd
 ```
 
-## Repository layout
+この起動スクリプトは、必要なら自動で次を行います。
 
-- `src/main` - Electron main process, Discord bridge logic, terminal session management
-- `src/renderer` - desktop UI
-- `src/preload` - preload bridge APIs
-- `src/shared` - shared contracts
-- `docs` - design notes and bridge specifications
+- `npm install`
+- `npm run build`
+- `npm run start`
 
-## Security notes
+手動でやる場合は次の通りです。
 
-- keep `.env` out of version control
-- restrict access with `DISCORD_ALLOWED_USER_ID` and `DISCORD_ALLOWED_CHANNEL_IDS`
-- treat this as a local-control tool with real access to your machine
+```powershell
+npm install
+npm run build
+npm start
+```
 
-## Publishing notes
+## 6. 使い方
 
-Before publishing publicly, review:
+1. アプリを起動する
+2. Discord で、許可したチャンネルを開く
+3. そのチャンネルに普通のメッセージを送る
+4. アプリ側に PowerShell セッションが作られ、Discord の内容が入力される
+5. 結果が Discord に返る
 
-- the final repository name on GitHub
-- the chosen open-source license
-- the example environment file
-- any remaining local-only paths or secrets
+### よく使うコマンド
 
-## License
+- 通常のメッセージ: PowerShell へそのまま送信
+- `[[terminal:enter]]`: Enter だけ送る
+- `[[terminal:ctrl-c]]`: Ctrl+C を送る
+- `[[terminal:esc]]`: Escape を送る
+- `[[terminal:stop]]`: 進行中のリクエスト停止を試みる
+- `[[terminal:screenshot]]`: アプリ画面のスクリーンショットを Discord に返す
+
+## はじめて使うときのおすすめ確認
+
+最初は、許可したチャンネルで次のような安全な入力から始めるのがおすすめです。
+
+```text
+Get-Date
+```
+
+返答が返ってきたら、次に次のような軽い確認をします。
+
+```text
+Get-Location
+```
+
+## うまく動かないとき
+
+### Discord に何も返ってこない
+
+次を確認してください。
+
+- `DISCORD_BOT_TOKEN` が正しいか
+- `ALLOW_USER_IDS` に自分のユーザー ID が入っているか
+- `ALLOW_CHANNEL_IDS` に対象チャンネル ID が入っているか
+- Bot がそのチャンネルを読めるか
+- Discord Developer Portal で **MESSAGE CONTENT INTENT** を有効にしたか
+
+### アプリは起動するが PowerShell が期待どおり動かない
+
+- PowerShell 7 を入れているか
+- 会社 PC などで実行ポリシーやセキュリティ制限が強すぎないか
+- ローカルで PowerShell 自体は普通に起動できるか
+
+### 起動に失敗する
+
+- Node.js 20 以降が入っているか
+- 一度プロジェクトフォルダで `npm install` をやり直す
+
+## 安全に使うための注意
+
+- このツールは **許可した Discord メッセージを自分の PC に流し込む** ものです
+- 公開サーバーや不特定多数が書き込めるチャンネルでは使わないでください
+- `ALLOW_USER_IDS` と `ALLOW_CHANNEL_IDS` は必ず絞ってください
+- `.env` は Git にコミットしないでください
+
+## 公開ドキュメント
+
+- 公開仕様書: `docs/public-spec.md`
+- 更新履歴: `CHANGELOG.md`
+
+## ライセンス
 
 MIT

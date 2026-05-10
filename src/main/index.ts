@@ -1,3 +1,4 @@
+import { config as loadEnvFile } from 'dotenv';
 import { app, BrowserWindow } from 'electron';
 import { createMainWindow } from './app/createMainWindow';
 import { loadBridgeRuntimeConfig } from './bridge/bridgeConfig';
@@ -7,6 +8,8 @@ import { TerminalAutomationService } from './bridge/terminalAutomationService';
 import { PreferencesStore } from './app/preferencesStore';
 import { registerIpc } from './ipc/registerIpc';
 import { TerminalSessionManager } from './terminal/terminalSessionManager';
+
+loadEnvFile();
 
 let mainWindow: BrowserWindow | undefined;
 let terminalSessionManager: TerminalSessionManager | undefined;

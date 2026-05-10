@@ -39,8 +39,8 @@ const DEFAULT_DIMENSIONS: TerminalDimensions = {
 export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
   return {
     discordBotToken: readOptionalString('DISCORD_BOT_TOKEN'),
-    allowUserIds: parseList('ALLOW_USER_IDS'),
-    allowChannelIds: parseList('ALLOW_CHANNEL_IDS'),
+    allowUserIds: parseList(['ALLOW_USER_IDS', 'DISCORD_ALLOWED_USER_IDS', 'DISCORD_ALLOWED_USER_ID']),
+    allowChannelIds: parseList(['ALLOW_CHANNEL_IDS', 'DISCORD_ALLOWED_CHANNEL_IDS']),
     bridgeDimensions: DEFAULT_DIMENSIONS,
     completion: {
       settleMs: readNumber('BRIDGE_SETTLE_MS', 2000),
@@ -67,8 +67,8 @@ export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
   };
 }
 
-function parseList(name: string): string[] {
-  const value = readOptionalString(name);
+function parseList(names: string | string[]): string[] {
+  const value = readOptionalString(names);
   if (!value) {
     return [];
   }
@@ -76,9 +76,16 @@ function parseList(name: string): string[] {
   return [...new Set(value.split(/[,\s]+/).map((part) => part.trim()).filter(Boolean))];
 }
 
-function readOptionalString(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value ? value : undefined;
+function readOptionalString(names: string | string[]): string | undefined {
+  const candidates = Array.isArray(names) ? names : [names];
+  for (const name of candidates) {
+    const value = process.env[name]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 function readNumber(name: string, fallback: number): number {
