@@ -13,6 +13,19 @@ const ANSI_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 export class TerminalDiffService {
   buildDiff(options: BuildDiffOptions): TerminalDiffResult {
     const normalizedRawOutput = normalizeText(options.rawOutput);
+    const screenDiff = buildScreenDiff(options.beforeSnapshot?.screenText ?? '', options.afterSnapshot.screenText, options.tailChars);
+
+    if (shouldPreferScreenDiff(normalizedRawOutput, screenDiff, options.afterSnapshot.screenText)) {
+      return {
+        beforeSnapshotId: options.beforeSnapshot?.snapshotId,
+        afterSnapshotId: options.afterSnapshot.snapshotId,
+        diffText: screenDiff,
+        diffLineCount: countLines(screenDiff),
+        wasFallbackUsed: false,
+        source: 'screen-diff'
+      };
+    }
+
     if (normalizedRawOutput.trim().length > 0) {
       return {
         beforeSnapshotId: options.beforeSnapshot?.snapshotId,
@@ -24,7 +37,6 @@ export class TerminalDiffService {
       };
     }
 
-    const screenDiff = buildScreenDiff(options.beforeSnapshot?.screenText ?? '', options.afterSnapshot.screenText, options.tailChars);
     if (screenDiff.trim().length > 0) {
       return {
         beforeSnapshotId: options.beforeSnapshot?.snapshotId,
@@ -97,4 +109,46 @@ function countLines(text: string): number {
   }
 
   return text.split('\n').length;
+}
+
+function shouldPreferScreenDiff(rawOutput: string, screenDiff: string, afterScreenText: string): boolean {
+  if (rawOutput.trim().length === 0 || screenDiff.trim().length === 0) {
+    return false;
+  }
+
+  const comparableRaw = collapseComparisonText(rawOutput);
+  const comparableDiff = collapseComparisonText(screenDiff);
+  const comparableAfterScreen = collapseComparisonText(normalizeText(afterScreenText));
+  if (!comparableRaw || !comparableDiff || !comparableAfterScreen) {
+    return false;
+  }
+
+  if (!comparableRaw.includes(comparableDiff) || !comparableRaw.includes(comparableAfterScreen)) {
+    return false;
+  }
+
+  const remainderLength = comparableRaw.length - comparableAfterScreen.length;
+  const maxAllowedRemainder = Math.max(120, Math.floor(comparableAfterScreen.length * 0.35));
+  if (remainderLength <= maxAllowedRemainder) {
+    return true;
+  }
+
+  const rawMeaningfulLines = countMeaningfulLines(rawOutput);
+  const diffMeaningfulLines = countMeaningfulLines(screenDiff);
+  if (diffMeaningfulLines === 0) {
+    return false;
+  }
+
+  return rawMeaningfulLines <= diffMeaningfulLines * 2 && rawOutput.length > screenDiff.length;
+}
+
+function collapseComparisonText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function countMeaningfulLines(text: string): number {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0).length;
 }

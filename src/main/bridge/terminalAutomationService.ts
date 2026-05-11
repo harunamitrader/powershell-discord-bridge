@@ -169,7 +169,13 @@ export class TerminalAutomationService {
       tailChars: this.config.diff.tailChars,
       fallbackLines: this.config.diff.fallbackLines
     });
-    const replyChunks = this.replyFormatter.format(diff.diffText);
+    const replyText = sanitizeReplyText({
+      diffText: diff.diffText,
+      rawOutput,
+      afterScreenText: afterSnapshot?.screenText,
+      submittedText: request.kind === 'text' ? request.content : undefined
+    });
+    const replyChunks = this.replyFormatter.format(replyText);
 
     return {
       beforeSnapshot,
@@ -344,6 +350,345 @@ function isGeminiFooterLine(line: string): boolean {
 function normalizeComparisonText(value?: string): string {
   return value?.replace(/\s+/g, ' ').trim() ?? '';
 }
+
+function sanitizeReplyText(options: {
+  diffText: string;
+  rawOutput: string;
+  afterScreenText?: string;
+  submittedText?: string;
+}): string {
+  const submittedText = options.submittedText;
+  const profile = detectReplyProfile(submittedText, options.afterScreenText);
+  const profileReply = extractProfileReply(profile, options.rawOutput, options.afterScreenText, submittedText);
+  const original = normalizeTerminalText(profileReply ?? options.diffText);
+  const lines = original.split('\n').map((line) => line.replace(/[ \t]+$/g, ''));
+  const normalizedSubmitted = normalizeComparisonText(submittedText);
+  const sanitizedLines = [...lines];
+
+  while (sanitizedLines.length > 0 && !sanitizedLines[0]?.trim()) {
+    sanitizedLines.shift();
+  }
+
+  while (sanitizedLines.length > 0) {
+    const first = sanitizedLines[0] ?? '';
+    const withoutPrompt = stripPowerShellPrompt(first);
+    if (isPowerShellPromptOnlyLine(first)) {
+      sanitizedLines.shift();
+      continue;
+    }
+
+    if (normalizedSubmitted && normalizeComparisonText(withoutPrompt || first) === normalizedSubmitted) {
+      sanitizedLines.shift();
+      continue;
+    }
+
+    break;
+  }
+
+  while (sanitizedLines.length > 0) {
+    const last = sanitizedLines[sanitizedLines.length - 1] ?? '';
+    if (!last.trim() || isPowerShellPromptOnlyLine(last)) {
+      sanitizedLines.pop();
+      continue;
+    }
+
+    break;
+  }
+
+  const withoutPromptLines = sanitizedLines.filter((line) => !isPowerShellPromptOnlyLine(line)).join('\n').trim();
+  const inlinePromptStripped = stripInlinePowerShellPrompts(withoutPromptLines);
+  const withoutEchoLines = inlinePromptStripped
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      if (!line.trim()) {
+        return false;
+      }
+
+      return !normalizedSubmitted || normalizeComparisonText(line) !== normalizedSubmitted;
+    })
+    .join('\n')
+    .trim();
+  const cleaned = dedupeRepeatedLineBlocks(dedupeAdjacentDuplicateLines(withoutEchoLines));
+
+  return cleaned || original.trim() || '(no diff)';
+}
+
+type ReplyProfile = 'generic' | 'gemini-print' | 'gemini-interactive' | 'codex-exec' | 'claude-print' | 'copilot-print';
+
+function stripPowerShellPrompt(line: string): string {
+  return line.replace(/^PS [^\r\n>]+>\s*/, '');
+}
+
+function isPowerShellPromptOnlyLine(line: string): boolean {
+  return /^PS [^\r\n>]+>\s*$/.test(line.trim());
+}
+
+function stripInlinePowerShellPrompts(text: string): string {
+  return text.replace(/PS [^\r\n>]+>\s*/g, '');
+}
+
+function normalizeTerminalText(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, '')
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/\u001b[@-_]/g, '')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+    .replace(/[ \t]+$/gm, '');
+}
+
+function detectReplyProfile(submittedText: string | undefined, afterScreenText?: string): ReplyProfile {
+  const submittedLower = submittedText?.trim().toLowerCase() ?? '';
+  const normalizedAfter = normalizeTerminalText(afterScreenText ?? '');
+  if (normalizedAfter.includes('Type your message or @path/to/file')) {
+    return 'gemini-interactive';
+  }
+
+  if (/^gemini\b/.test(submittedLower) && /\s(?:-p|--prompt)\b/.test(submittedLower)) {
+    return 'gemini-print';
+  }
+
+  if (/^codex\s+exec\b/.test(submittedLower)) {
+    return 'codex-exec';
+  }
+
+  if (/^claude\b/.test(submittedLower) && /\s(?:-p|--print)\b/.test(submittedLower)) {
+    return 'claude-print';
+  }
+
+  if (/^copilot\b/.test(submittedLower) && /\s(?:-p|--prompt)\b/.test(submittedLower)) {
+    return 'copilot-print';
+  }
+
+  return 'generic';
+}
+
+function extractProfileReply(
+  profile: ReplyProfile,
+  rawOutput: string,
+  afterScreenText: string | undefined,
+  submittedText: string | undefined
+): string | undefined {
+  switch (profile) {
+    case 'gemini-interactive':
+      return extractGeminiInteractiveReply(afterScreenText ?? '');
+    case 'gemini-print':
+      return extractGeminiPrintReply(normalizeTerminalText(rawOutput), submittedText);
+    case 'codex-exec':
+      return extractCodexExecReply(normalizeTerminalText(rawOutput), submittedText);
+    case 'claude-print':
+    case 'copilot-print':
+      return extractTrailingBlock(normalizeTerminalText(rawOutput), submittedText);
+    default:
+      return undefined;
+  }
+}
+
+function extractGeminiInteractiveReply(screenText: string): string | undefined {
+  const lines = normalizeTerminalText(screenText).split('\n').map((line) => line.trimEnd());
+  let assistantLineIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index].trimStart().startsWith('✦ ')) {
+      assistantLineIndex = index;
+      break;
+    }
+  }
+
+  if (assistantLineIndex === -1) {
+    return undefined;
+  }
+
+  const replyLines: string[] = [lines[assistantLineIndex].replace(/^.*?✦\s*/, '').trimEnd()];
+  for (let index = assistantLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (isGeminiUiFooterLine(line)) {
+      break;
+    }
+
+    replyLines.push(line);
+  }
+
+  return replyLines.join('\n').trim();
+}
+
+function extractGeminiPrintReply(rawOutput: string, submittedText: string | undefined): string | undefined {
+  const lines = rawOutput.split('\n').map((line) => line.trimEnd());
+  let lastNoiseIndex = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    const trimmed = lines[index].trimStart();
+    if (GEMINI_NOISE_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) {
+      lastNoiseIndex = index;
+    }
+  }
+
+  const replyLines = lines
+    .slice(lastNoiseIndex + 1)
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return false;
+      }
+
+      if (trimmed === submittedText?.trim()) {
+        return false;
+      }
+
+      return !isPowerShellPromptOnlyLine(trimmed);
+    });
+
+  if (replyLines.length > 0) {
+    return replyLines.join('\n').trim();
+  }
+
+  return extractTrailingBlock(stripKnownNoise(rawOutput, GEMINI_NOISE_PREFIXES), submittedText);
+}
+
+function isGeminiUiFooterLine(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    trimmed.length === 0 ||
+    trimmed.startsWith('? for shortcuts') ||
+    trimmed.startsWith('auto-accept edits ') ||
+    trimmed.startsWith('>') ||
+    trimmed.startsWith('workspace ') ||
+    trimmed.startsWith('~\\') ||
+    /^[-─]{8,}$/.test(trimmed) ||
+    /^[▀▄]{8,}$/.test(trimmed)
+  );
+}
+
+function extractCodexExecReply(rawOutput: string, submittedText: string | undefined): string | undefined {
+  const lines = rawOutput.split('\n').map((line) => line.trimEnd());
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index].trim() !== 'codex') {
+      continue;
+    }
+
+    const replyLines: string[] = [];
+    for (let nextIndex = index + 1; nextIndex < lines.length; nextIndex += 1) {
+      const line = lines[nextIndex];
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === submittedText?.trim() || trimmed === 'tokens used' || isPowerShellPromptOnlyLine(trimmed)) {
+        break;
+      }
+
+      replyLines.push(line);
+    }
+
+    if (replyLines.length > 0) {
+      return replyLines.join('\n').trim();
+    }
+  }
+
+  return extractTrailingBlock(stripKnownNoise(rawOutput, CODEX_NOISE_PREFIXES), submittedText);
+}
+
+function stripKnownNoise(text: string, prefixes: readonly string[]): string {
+  return text
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trimStart();
+      return !prefixes.some((prefix) => trimmed.startsWith(prefix));
+    })
+    .join('\n');
+}
+
+function extractTrailingBlock(text: string, submittedText: string | undefined): string | undefined {
+  const filteredLines = text
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return true;
+      }
+
+      if (trimmed === submittedText?.trim()) {
+        return false;
+      }
+
+      return !isPowerShellPromptOnlyLine(trimmed);
+    });
+  const blocks = filteredLines
+    .join('\n')
+    .split(/\n\s*\n+/)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 0);
+
+  return blocks.at(-1);
+}
+
+function dedupeAdjacentDuplicateLines(text: string): string {
+  const result: string[] = [];
+  for (const line of text.split('\n')) {
+    if (result.length === 0 || result[result.length - 1] !== line) {
+      result.push(line);
+    }
+  }
+
+  return result.join('\n');
+}
+
+function dedupeRepeatedLineBlocks(text: string): string {
+  if (!text) {
+    return text;
+  }
+
+  const lines = text.split('\n');
+  for (let parts = 4; parts >= 2; parts -= 1) {
+    if (lines.length % parts !== 0) {
+      continue;
+    }
+
+    const chunkLength = lines.length / parts;
+    const firstChunk = lines.slice(0, chunkLength).join('\n');
+    let allEqual = true;
+    for (let index = 1; index < parts; index += 1) {
+      const chunk = lines.slice(index * chunkLength, (index + 1) * chunkLength).join('\n');
+      if (chunk !== firstChunk) {
+        allEqual = false;
+        break;
+      }
+    }
+
+    if (allEqual) {
+      return firstChunk;
+    }
+  }
+
+  return text;
+}
+
+const GEMINI_NOISE_PREFIXES = [
+  'Loaded cached credentials.',
+  '[MCP error]',
+  'at ',
+  'code:',
+  'data:',
+  'MCP issues detected.',
+  'Registering notification handlers',
+  "Server '",
+  'Scheduling MCP context refresh...',
+  'Executing MCP context refresh...',
+  'MCP context refresh complete.'
+] as const;
+
+const CODEX_NOISE_PREFIXES = [
+  'OpenAI Codex',
+  '--------',
+  'workdir:',
+  'model:',
+  'provider:',
+  'approval:',
+  'sandbox:',
+  'reasoning effort:',
+  'reasoning summaries:',
+  'session id:',
+  'user',
+  'tokens used'
+] as const;
 
 function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => {
