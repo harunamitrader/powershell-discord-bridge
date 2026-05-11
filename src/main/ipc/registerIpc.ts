@@ -2,58 +2,96 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type {
+  BridgeSettings,
+  BridgeSettingsUpdate,
   BootstrapState,
-  CreateSessionOptions,
-  SidebarWidthUpdate,
   TerminalAutomationTurnRequest,
   TerminalControlRequest,
   TerminalInputLockUpdate,
   TerminalRedrawJiggleRequest,
   TerminalResizeRequest,
   TerminalSendInputRequest,
+  TerminalSessionDataEvent,
+  TerminalSessionExitEvent,
   TerminalSessionRenameRequest,
+  TerminalSessionSummary,
   TerminalSnapshotRequest,
   TerminalViewSnapshot,
   TerminalViewSnapshotPublishRequest,
   TerminalViewSnapshotSession,
   TerminalWaitForCompletionRequest,
-  TerminalWriteRequest
+  TerminalWriteRequest,
+  TerminalSlotId,
+  TerminalSlotSettingsUpdate,
+  TerminalSlotSettingsUpdateResult
 } from '../../shared/terminal';
 import { TerminalAutomationService } from '../bridge/terminalAutomationService';
+import { DiscordBridgeService } from '../bridge/discordBridgeService';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
+import { TerminalSlotService } from '../app/terminalSlotService';
 
 interface RegisterIpcOptions {
+  discordBridgeService: DiscordBridgeService;
   terminalAutomationService: TerminalAutomationService;
   window: BrowserWindow;
   preferencesStore: PreferencesStore;
   terminalSessionManager: TerminalSessionManager;
+  terminalSlotService: TerminalSlotService;
 }
 
 export function registerIpc(options: RegisterIpcOptions): void {
-  const { window, preferencesStore, terminalAutomationService, terminalSessionManager } = options;
+  const { window, preferencesStore, terminalAutomationService, terminalSessionManager, discordBridgeService, terminalSlotService } = options;
 
-  terminalSessionManager.on('session-updated', (session) => {
-    window.webContents.send('terminal:session-updated', session);
-  });
+  const sendToRenderer = (channel: string, payload: unknown): void => {
+    if (window.isDestroyed()) {
+      return;
+    }
 
-  terminalSessionManager.on('session-data', (event) => {
-    window.webContents.send('terminal:session-data', event);
-  });
+    const { webContents } = window;
+    if (webContents.isDestroyed()) {
+      return;
+    }
 
-  terminalSessionManager.on('session-exit', (event) => {
-    window.webContents.send('terminal:session-exit', event);
+    webContents.send(channel, payload);
+  };
+
+  const handleSessionUpdated = (session: TerminalSessionSummary) => {
+    sendToRenderer('terminal:session-updated', session);
+  };
+  const handleSessionData = (event: TerminalSessionDataEvent) => {
+    sendToRenderer('terminal:session-data', event);
+  };
+  const handleSessionExit = (event: TerminalSessionExitEvent) => {
+    sendToRenderer('terminal:session-exit', event);
+  };
+
+  terminalSessionManager.on('session-updated', handleSessionUpdated);
+  terminalSessionManager.on('session-data', handleSessionData);
+  terminalSessionManager.on('session-exit', handleSessionExit);
+
+  window.once('closed', () => {
+    terminalSessionManager.off('session-updated', handleSessionUpdated);
+    terminalSessionManager.off('session-data', handleSessionData);
+    terminalSessionManager.off('session-exit', handleSessionExit);
   });
 
   ipcMain.handle('terminal:bootstrap', async (): Promise<BootstrapState> => ({
     defaultCwd: terminalSessionManager.getDefaultCwd(),
+    defaultWorkspaceCwd: preferencesStore.getDefaultWorkspaceCwd(),
     shellLabel: terminalSessionManager.getShellLabel(),
-    sidebarWidth: preferencesStore.getDefaultSidebarWidth(),
-    bridgeDimensions: terminalSessionManager.getBridgeDimensions()
+    bridgeDimensions: terminalSessionManager.getBridgeDimensions(),
+    bridgeSettings: preferencesStore.getBridgeSettings(),
+    terminalSlots: terminalSlotService.listSlots(),
+    sessions: terminalSessionManager.listSessions()
   }));
 
-  ipcMain.handle('terminal:create-session', async (_event, request?: CreateSessionOptions) => {
-    return terminalSessionManager.createSession(request);
+  ipcMain.handle('terminal:restart-slot', async (_event, slotId: TerminalSlotId) => {
+    return discordBridgeService.restartSlot(slotId);
+  });
+
+  ipcMain.handle('terminal:update-slot', async (_event, update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult> => {
+    return discordBridgeService.updateTerminalSlot(update);
   });
 
   ipcMain.handle('terminal:write', async (_event, request: TerminalWriteRequest) => {
@@ -64,12 +102,8 @@ export function registerIpc(options: RegisterIpcOptions): void {
     terminalSessionManager.resize(request);
   });
 
-  ipcMain.handle('terminal:close-session', async (_event, sessionId: string) => {
-    terminalSessionManager.closeSession(sessionId);
-  });
-
   ipcMain.handle('terminal:rename-session', async (_event, request: TerminalSessionRenameRequest) => {
-    return terminalSessionManager.renameSession(request.sessionId, request.title);
+    return discordBridgeService.renameSession(request);
   });
 
   ipcMain.handle('terminal:get-session-state', async (_event, sessionId: string) => {
@@ -108,8 +142,14 @@ export function registerIpc(options: RegisterIpcOptions): void {
     return terminalSessionManager.setInputLock(update);
   });
 
-  ipcMain.handle('terminal:set-sidebar-width', async (_event, update: SidebarWidthUpdate) => {
-    preferencesStore.setSidebarWidth(update.width);
+  ipcMain.handle('terminal:set-default-workspace-cwd', async (_event, cwd: string) => {
+    return preferencesStore.setDefaultWorkspaceCwd(cwd);
+  });
+
+  ipcMain.handle('terminal:update-bridge-settings', async (_event, update: BridgeSettingsUpdate): Promise<BridgeSettings> => {
+    const settings = preferencesStore.setBridgeSettings(update);
+    terminalSessionManager.applyBridgeSettings();
+    return settings;
   });
 
   ipcMain.handle('terminal:publish-live-view-snapshot', async (_event, request: TerminalViewSnapshotPublishRequest) => {

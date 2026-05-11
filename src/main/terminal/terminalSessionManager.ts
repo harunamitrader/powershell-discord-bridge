@@ -63,14 +63,11 @@ export class TerminalSessionManager extends EventEmitter {
   }
 
   getDefaultCwd(): string {
-    return this.preferencesStore.getLastCwd() ?? process.cwd();
+    return this.preferencesStore.getDefaultWorkspaceCwd();
   }
 
   getBridgeDimensions(): TerminalDimensions {
-    return {
-      cols: DEFAULT_COLUMNS,
-      rows: DEFAULT_ROWS
-    };
+    return this.preferencesStore.getBridgeSettings().bridgeDimensions;
   }
 
   hasSession(sessionId: string): boolean {
@@ -90,6 +87,7 @@ export class TerminalSessionManager extends EventEmitter {
 
     const summary: TerminalSessionSummary = {
       id: sessionId,
+      slotId: options?.slotId,
       shellLabel: this.shellInfo.label,
       status: 'starting',
       mode,
@@ -98,7 +96,7 @@ export class TerminalSessionManager extends EventEmitter {
       rows: dimensions.rows,
       inputLocked: false,
       cwd,
-      title: undefined
+      title: options?.title?.trim() || undefined
     };
 
     const pty = spawn(
@@ -224,6 +222,21 @@ export class TerminalSessionManager extends EventEmitter {
     session.summary.inputLocked = update.locked;
     this.emit('session-updated', { ...session.summary });
     return { ...session.summary };
+  }
+
+  applyBridgeSettings(): void {
+    const dimensions = this.getBridgeDimensions();
+    for (const session of this.sessions.values()) {
+      if (session.summary.mode !== 'bridge' || session.summary.status === 'exited') {
+        continue;
+      }
+
+      session.pty.resize(dimensions.cols, dimensions.rows);
+      session.mirror.resize(dimensions.cols, dimensions.rows);
+      session.summary.cols = dimensions.cols;
+      session.summary.rows = dimensions.rows;
+      this.emit('session-updated', { ...session.summary });
+    }
   }
 
   async getSessionState(sessionId: string): Promise<TerminalSessionState> {

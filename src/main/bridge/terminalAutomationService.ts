@@ -10,6 +10,7 @@ import type {
   TerminalWaitForCompletionResult,
   TerminalWriteSource
 } from '../../shared/terminal';
+import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import type { BridgeRuntimeConfig } from './bridgeConfig';
 import { DiscordReplyFormatter } from './discordReplyFormatter';
@@ -22,7 +23,8 @@ export class TerminalAutomationService {
 
   constructor(
     private readonly terminalSessionManager: TerminalSessionManager,
-    private readonly config: BridgeRuntimeConfig
+    private readonly config: BridgeRuntimeConfig,
+    private readonly preferencesStore: PreferencesStore
   ) {
     this.replyFormatter = new DiscordReplyFormatter(config.reply);
   }
@@ -49,11 +51,12 @@ export class TerminalAutomationService {
   async waitForCompletion(request: TerminalWaitForCompletionRequest): Promise<TerminalWaitForCompletionResult> {
     const startedAt = Date.now();
     const expectOutput = request.expectOutput ?? true;
+    const bridgeSettings = this.preferencesStore.getBridgeSettings();
     const stablePollTarget = request.stablePollCount ?? this.config.completion.stablePollCount;
     const settleMs = request.settleMs ?? this.config.completion.settleMs;
-    const softTimeoutMs = request.softTimeoutMs ?? this.config.completion.softTimeoutMs;
+    const softTimeoutMs = request.softTimeoutMs ?? bridgeSettings.softTimeoutMs;
     const noOutputTimeoutMs = request.noOutputTimeoutMs ?? this.config.completion.noOutputTimeoutMs;
-    const hardTimeoutMs = request.hardTimeoutMs ?? this.config.completion.hardTimeoutMs;
+    const hardTimeoutMs = request.hardTimeoutMs ?? bridgeSettings.hardTimeoutMs;
     const pollIntervalMs = request.pollIntervalMs ?? this.config.completion.pollIntervalMs;
     const baselinePromptReadyAt = request.baselinePromptReadyAt;
     const baselineObservedOutputEvents = request.baselineObservedOutputEvents ?? 0;

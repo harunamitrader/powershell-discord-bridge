@@ -5,8 +5,7 @@ import type { TerminalDimensions } from '../../shared/terminal';
 export interface BridgeRuntimeConfig {
   discordBotToken?: string;
   allowUserIds: string[];
-  allowChannelIds: string[];
-  bridgeDimensions: TerminalDimensions;
+  guildId?: string;
   completion: {
     settleMs: number;
     softTimeoutMs: number;
@@ -31,24 +30,18 @@ export interface BridgeRuntimeConfig {
   };
 }
 
-const DEFAULT_DIMENSIONS: TerminalDimensions = {
-  cols: 120,
-  rows: 32
-};
-
 export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
   return {
     discordBotToken: readOptionalString('DISCORD_BOT_TOKEN'),
     allowUserIds: parseList(['ALLOW_USER_IDS', 'DISCORD_ALLOWED_USER_IDS', 'DISCORD_ALLOWED_USER_ID']),
-    allowChannelIds: parseList(['ALLOW_CHANNEL_IDS', 'DISCORD_ALLOWED_CHANNEL_IDS']),
-    bridgeDimensions: DEFAULT_DIMENSIONS,
+    guildId: readOptionalString(['ALLOW_GUILD_ID', 'ALLOW_GUILD_IDS', 'DISCORD_ALLOWED_GUILD_ID', 'DISCORD_ALLOWED_GUILD_IDS']),
     completion: {
-      settleMs: readNumber('BRIDGE_SETTLE_MS', 2000),
-      softTimeoutMs: readNumber('BRIDGE_SOFT_TIMEOUT_MS', 20000),
-      noOutputTimeoutMs: readNumber('BRIDGE_NO_OUTPUT_TIMEOUT_MS', 3000),
-      hardTimeoutMs: readNumber('BRIDGE_HARD_TIMEOUT_MS', 120000),
-      pollIntervalMs: readNumber('BRIDGE_POLL_INTERVAL_MS', 500),
-      stablePollCount: readNumber('BRIDGE_STABLE_POLL_COUNT', 3)
+      settleMs: 2000,
+      softTimeoutMs: 20000,
+      noOutputTimeoutMs: 3000,
+      hardTimeoutMs: 120000,
+      pollIntervalMs: 500,
+      stablePollCount: 3
     },
     diff: {
       tailChars: readNumber('BRIDGE_DIFF_TAIL_CHARS', 10000),

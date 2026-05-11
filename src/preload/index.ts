@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  BridgeSettings,
+  BridgeSettingsUpdate,
   BootstrapState,
-  CreateSessionOptions,
-  SidebarWidthUpdate,
   TerminalAutomationTurnRequest,
   TerminalAutomationTurnResult,
   TerminalApi,
@@ -16,6 +16,9 @@ import type {
   TerminalSessionSnapshot,
   TerminalSessionState,
   TerminalSessionSummary,
+  TerminalSlotId,
+  TerminalSlotSettingsUpdate,
+  TerminalSlotSettingsUpdateResult,
   TerminalSnapshotRequest,
   TerminalViewSnapshotPublishRequest,
   TerminalWaitForCompletionRequest,
@@ -38,8 +41,11 @@ const api: TerminalApi = {
   async bootstrap(): Promise<BootstrapState> {
     return ipcRenderer.invoke('terminal:bootstrap');
   },
-  async createSession(options?: CreateSessionOptions): Promise<TerminalSessionSummary> {
-    return ipcRenderer.invoke('terminal:create-session', options);
+  async restartTerminalSlot(slotId: TerminalSlotId): Promise<TerminalSessionSummary> {
+    return ipcRenderer.invoke('terminal:restart-slot', slotId);
+  },
+  async updateTerminalSlot(update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult> {
+    return ipcRenderer.invoke('terminal:update-slot', update);
   },
   async write(sessionId: string, data: string): Promise<void> {
     const request: TerminalWriteRequest = {
@@ -56,9 +62,6 @@ const api: TerminalApi = {
       rows,
       source: 'local'
     });
-  },
-  async closeSession(sessionId: string): Promise<void> {
-    await ipcRenderer.invoke('terminal:close-session', sessionId);
   },
   async renameSession(request: TerminalSessionRenameRequest): Promise<TerminalSessionSummary> {
     return ipcRenderer.invoke('terminal:rename-session', request);
@@ -99,8 +102,11 @@ const api: TerminalApi = {
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void {
     return subscribe('terminal:session-exit', listener);
   },
-  async setSidebarWidth(update: SidebarWidthUpdate): Promise<void> {
-    await ipcRenderer.invoke('terminal:set-sidebar-width', update);
+  async setDefaultWorkspaceCwd(cwd: string): Promise<string> {
+    return ipcRenderer.invoke('terminal:set-default-workspace-cwd', cwd);
+  },
+  async updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings> {
+    return ipcRenderer.invoke('terminal:update-bridge-settings', update);
   },
   async publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void> {
     await ipcRenderer.invoke('terminal:publish-live-view-snapshot', request);

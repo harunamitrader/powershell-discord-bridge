@@ -1,6 +1,5 @@
-import type { CreateSessionOptions, TerminalControlKey } from '../../shared/terminal';
+import type { TerminalControlKey, TerminalSlotId } from '../../shared/terminal';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
-import type { BridgeRuntimeConfig } from './bridgeConfig';
 
 export type BridgeRequestState =
   | 'received'
@@ -15,8 +14,11 @@ export type BridgeRequestState =
 export type BridgeRequestKind = 'text' | 'control' | 'stop' | 'screenshot';
 
 export interface ChannelSessionBinding {
+  slotId: TerminalSlotId;
   channelId: string;
   sessionId: string;
+  source: 'discord' | 'workspace';
+  workspaceName?: string;
   status: 'active' | 'busy' | 'dead';
   createdAt: string;
   updatedAt: string;
@@ -52,6 +54,11 @@ export interface EnqueueRequestResult {
   request: BridgeRequestRecord;
 }
 
+export interface WorkspaceBindingResult {
+  binding: ChannelSessionBinding;
+  session: ReturnType<TerminalSessionManager['createSession']>;
+}
+
 interface ChannelRecord {
   binding: ChannelSessionBinding;
   inFlight?: BridgeRequestRecord;
@@ -60,40 +67,58 @@ interface ChannelRecord {
 
 export class ChannelSessionRegistry {
   private readonly records = new Map<string, ChannelRecord>();
+  private readonly slotChannels = new Map<TerminalSlotId, string>();
 
-  constructor(
-    private readonly terminalSessionManager: TerminalSessionManager,
-    private readonly config: BridgeRuntimeConfig
-  ) {}
+  constructor(private readonly terminalSessionManager: TerminalSessionManager) {}
 
-  ensureBinding(channelId: string): ChannelSessionBinding {
-    this.assertAllowedChannel(channelId);
-
-    const existing = this.records.get(channelId);
-    if (existing && this.isSessionAlive(existing.binding.sessionId)) {
-      return cloneBinding(existing.binding);
+  registerWorkspaceBinding(input: {
+    slotId: TerminalSlotId;
+    channelId: string;
+    sessionId: string;
+    workspaceName: string;
+  }): ChannelSessionBinding {
+    const existingChannelId = this.slotChannels.get(input.slotId);
+    if (existingChannelId && existingChannelId !== input.channelId) {
+      this.records.delete(existingChannelId);
     }
 
-    const createdAt = new Date().toISOString();
-    const options: CreateSessionOptions = {
-      mode: 'bridge',
-      dimensions: this.config.bridgeDimensions
-    };
-    const session = this.terminalSessionManager.createSession(options);
+    const existingRecord = this.records.get(input.channelId);
+    const timestamp = new Date().toISOString();
     const binding: ChannelSessionBinding = {
-      channelId,
-      sessionId: session.id,
-      status: 'active',
-      createdAt,
-      updatedAt: createdAt
+      slotId: input.slotId,
+      channelId: input.channelId,
+      sessionId: input.sessionId,
+      source: 'workspace',
+      workspaceName: input.workspaceName,
+      status: existingRecord?.binding.status ?? 'active',
+      createdAt: existingRecord?.binding.createdAt ?? timestamp,
+      updatedAt: timestamp
     };
 
-    this.records.set(channelId, { binding });
+    this.records.set(input.channelId, {
+      binding,
+      inFlight: existingRecord?.inFlight,
+      queued: existingRecord?.queued
+    });
+    this.slotChannels.set(input.slotId, input.channelId);
     return cloneBinding(binding);
   }
 
+  rebindSession(slotId: TerminalSlotId, sessionId: string): ChannelSessionBinding | undefined {
+    const channelId = this.slotChannels.get(slotId);
+    if (!channelId) {
+      return undefined;
+    }
+
+    const record = this.getExistingRecord(channelId);
+    record.binding.sessionId = sessionId;
+    record.binding.status = record.inFlight ? 'busy' : 'active';
+    record.binding.updatedAt = new Date().toISOString();
+    return cloneBinding(record.binding);
+  }
+
   enqueue(input: EnqueueRequestInput): EnqueueRequestResult {
-    const channel = this.getOrCreateRecord(input.channelId);
+    const channel = this.getExistingRecord(input.channelId);
     const request = createRequest(input);
 
     if (!channel.inFlight) {
@@ -223,36 +248,66 @@ export class ChannelSessionRegistry {
     return channel ? cloneBinding(channel.binding) : undefined;
   }
 
+  getBindingBySlotId(slotId: TerminalSlotId): ChannelSessionBinding | undefined {
+    const channelId = this.slotChannels.get(slotId);
+    if (!channelId) {
+      return undefined;
+    }
+
+    return this.getBinding(channelId);
+  }
+
+  getBindingBySessionId(sessionId: string): ChannelSessionBinding | undefined {
+    for (const channel of this.records.values()) {
+      if (channel.binding.sessionId === sessionId) {
+        return cloneBinding(channel.binding);
+      }
+    }
+
+    return undefined;
+  }
+
+  updateWorkspaceName(sessionId: string, workspaceName: string): ChannelSessionBinding {
+    for (const channel of this.records.values()) {
+      if (channel.binding.sessionId !== sessionId) {
+        continue;
+      }
+
+      channel.binding.workspaceName = workspaceName;
+      channel.binding.updatedAt = new Date().toISOString();
+      return cloneBinding(channel.binding);
+    }
+
+    throw new Error(`Unknown workspace binding for session: ${sessionId}`);
+  }
+
   resetBinding(channelId: string): ChannelSessionBinding {
     const channel = this.getExistingRecord(channelId);
     const previousSessionId = channel.binding.sessionId;
+    const slotId = channel.binding.slotId;
     const replacement = this.terminalSessionManager.createSession({
+      slotId,
+      title: channel.binding.workspaceName,
       mode: 'bridge',
-      dimensions: this.config.bridgeDimensions
+      dimensions: this.terminalSessionManager.getBridgeDimensions()
     });
+    const titledReplacement =
+      channel.binding.source === 'workspace' && channel.binding.workspaceName
+        ? this.terminalSessionManager.renameSession(replacement.id, channel.binding.workspaceName)
+        : replacement;
     const updatedAt = new Date().toISOString();
     channel.binding = {
       ...channel.binding,
-      sessionId: replacement.id,
+      sessionId: titledReplacement.id,
       status: channel.inFlight ? 'busy' : 'active',
       updatedAt
     };
 
-    if (previousSessionId !== replacement.id && this.terminalSessionManager.hasSession(previousSessionId)) {
+    if (previousSessionId !== titledReplacement.id && this.terminalSessionManager.hasSession(previousSessionId)) {
       this.terminalSessionManager.closeSession(previousSessionId);
     }
 
     return cloneBinding(channel.binding);
-  }
-
-  private getOrCreateRecord(channelId: string): ChannelRecord {
-    const binding = this.ensureBinding(channelId);
-    const record = this.records.get(binding.channelId);
-    if (!record) {
-      throw new Error(`Missing channel registry record for ${channelId}`);
-    }
-
-    return record;
   }
 
   private getExistingRecord(channelId: string): ChannelRecord {
@@ -280,11 +335,6 @@ export class ChannelSessionRegistry {
     return this.terminalSessionManager.hasSession(sessionId);
   }
 
-  private assertAllowedChannel(channelId: string): void {
-    if (this.config.allowChannelIds.length > 0 && !this.config.allowChannelIds.includes(channelId)) {
-      throw new Error(`Channel is not allowed for bridge session binding: ${channelId}`);
-    }
-  }
 }
 
 function createRequest(input: EnqueueRequestInput): BridgeRequestRecord {

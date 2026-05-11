@@ -5,13 +5,19 @@ import type { TerminalSessionSummary } from '../../shared/terminal';
 
 interface TerminalViewportProps {
   session: TerminalSessionSummary;
-  isActive: boolean;
+  focused: boolean;
+  onActivate?: () => void;
 }
 
-export function TerminalViewport({ session, isActive }: TerminalViewportProps) {
+export function TerminalViewport({ session, focused, onActivate }: TerminalViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const onActivateRef = useRef(onActivate);
+
+  useEffect(() => {
+    onActivateRef.current = onActivate;
+  }, [onActivate]);
 
   useEffect(() => {
     if (!containerRef.current || terminalRef.current) {
@@ -80,8 +86,8 @@ export function TerminalViewport({ session, isActive }: TerminalViewportProps) {
     let resizeObserver: ResizeObserver | undefined;
     if (session.resizeMode === 'fit') {
       resizeObserver = new ResizeObserver(() => {
-        if (isActive) {
-          fitAndSync(session.id, fitAddon, terminal);
+        if (fitAddonRef.current && terminalRef.current) {
+          fitAndSync(session.id, fitAddonRef.current, terminalRef.current);
         }
       });
 
@@ -91,14 +97,22 @@ export function TerminalViewport({ session, isActive }: TerminalViewportProps) {
       terminal.resize(session.cols, session.rows);
     }
 
+    containerRef.current.addEventListener('mousedown', handleActivate);
+
     return () => {
       unsubscribeData();
       unsubscribeExit();
       resizeObserver?.disconnect();
+      containerRef.current?.removeEventListener('mousedown', handleActivate);
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
+
+    function handleActivate() {
+      onActivateRef.current?.();
+      terminal.focus();
+    }
   }, [session.id]);
 
   useEffect(() => {
@@ -107,27 +121,25 @@ export function TerminalViewport({ session, isActive }: TerminalViewportProps) {
     }
 
     if (session.resizeMode === 'fit') {
-      if (!isActive || !fitAddonRef.current) {
+      if (!fitAddonRef.current) {
         return;
       }
 
       fitAndSync(session.id, fitAddonRef.current, terminalRef.current);
-      terminalRef.current.focus();
-      return;
+    } else {
+      terminalRef.current.resize(session.cols, session.rows);
     }
 
-    terminalRef.current.resize(session.cols, session.rows);
-    if (isActive) {
+    if (focused) {
       terminalRef.current.focus();
     }
-  }, [isActive, session.cols, session.rows, session.id, session.resizeMode]);
+  }, [focused, session.cols, session.rows, session.id, session.resizeMode]);
 
-  const viewportClassName = isActive ? 'terminal-viewport terminal-viewport--active' : 'terminal-viewport';
   const surfaceClassName =
     session.resizeMode === 'fixed' ? 'terminal-viewport__surface terminal-viewport__surface--fixed' : 'terminal-viewport__surface';
 
   return (
-    <div className={viewportClassName}>
+    <div className="terminal-viewport">
       <div ref={containerRef} className={surfaceClassName} />
     </div>
   );
@@ -141,5 +153,4 @@ function fitAndSync(sessionId: string, fitAddon: FitAddon, terminal: Terminal) {
   }
 
   void window.terminalApp.resize(sessionId, dimensions.cols, dimensions.rows);
-  terminal.focus();
 }

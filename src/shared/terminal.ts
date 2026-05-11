@@ -4,6 +4,7 @@ export type TerminalResizeMode = 'fit' | 'fixed';
 export type TerminalWriteSource = 'local' | 'bridge' | 'system';
 export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter';
 export type TerminalSnapshotReason = 'before-send' | 'after-complete' | 'manual';
+export type TerminalSlotId = 1 | 2 | 3 | 4;
 export type CompletionReason =
   | 'prompt_ready'
   | 'idle_stable'
@@ -17,21 +18,60 @@ export interface TerminalDimensions {
   rows: number;
 }
 
+export interface BridgeSettings {
+  autoScreenshotOnReply: boolean;
+  softTimeoutMs: number;
+  hardTimeoutMs: number;
+  bridgeDimensions: TerminalDimensions;
+}
+
+export interface BridgeSettingsUpdate {
+  autoScreenshotOnReply?: boolean;
+  softTimeoutMs?: number;
+  hardTimeoutMs?: number;
+  bridgeDimensions?: Partial<TerminalDimensions>;
+}
+
+export interface TerminalSlotSettings {
+  slotId: TerminalSlotId;
+  workspaceName: string;
+  channelId: string;
+  cwd: string;
+}
+
+export interface TerminalSlotSettingsUpdate {
+  slotId: TerminalSlotId;
+  workspaceName?: string;
+  channelId?: string;
+  cwd?: string;
+}
+
+export interface TerminalSlotSettingsUpdateResult {
+  slot: TerminalSlotSettings;
+  session?: TerminalSessionSummary;
+}
+
 export interface BootstrapState {
   defaultCwd: string;
+  defaultWorkspaceCwd: string;
   shellLabel: string;
-  sidebarWidth: number;
   bridgeDimensions: TerminalDimensions;
+  bridgeSettings: BridgeSettings;
+  terminalSlots: TerminalSlotSettings[];
+  sessions: TerminalSessionSummary[];
 }
 
 export interface CreateSessionOptions {
   cwd?: string;
   mode?: TerminalSessionMode;
   dimensions?: Partial<TerminalDimensions>;
+  title?: string;
+  slotId?: TerminalSlotId;
 }
 
 export interface TerminalSessionSummary extends TerminalDimensions {
   id: string;
+  slotId?: TerminalSlotId;
   shellLabel: string;
   status: SessionStatus;
   mode: TerminalSessionMode;
@@ -55,10 +95,6 @@ export interface TerminalSessionExitEvent {
 export interface TerminalSessionRenameRequest {
   sessionId: string;
   title: string;
-}
-
-export interface SidebarWidthUpdate {
-  width: number;
 }
 
 export interface TerminalWriteRequest {
@@ -231,10 +267,10 @@ export interface TerminalViewSnapshot {
 
 export interface TerminalApi {
   bootstrap(): Promise<BootstrapState>;
-  createSession(options?: CreateSessionOptions): Promise<TerminalSessionSummary>;
+  restartTerminalSlot(slotId: TerminalSlotId): Promise<TerminalSessionSummary>;
+  updateTerminalSlot(update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult>;
   write(sessionId: string, data: string): Promise<void>;
   resize(sessionId: string, cols: number, rows: number): Promise<void>;
-  closeSession(sessionId: string): Promise<void>;
   renameSession(request: TerminalSessionRenameRequest): Promise<TerminalSessionSummary>;
   getSessionState(sessionId: string): Promise<TerminalSessionState>;
   getBufferSnapshot(request: TerminalSnapshotRequest): Promise<TerminalSessionSnapshot>;
@@ -248,6 +284,7 @@ export interface TerminalApi {
   onSessionUpdated(listener: (session: TerminalSessionSummary) => void): () => void;
   onSessionData(listener: (event: TerminalSessionDataEvent) => void): () => void;
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void;
-  setSidebarWidth(update: SidebarWidthUpdate): Promise<void>;
+  setDefaultWorkspaceCwd(cwd: string): Promise<string>;
+  updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings>;
   publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void>;
 }
