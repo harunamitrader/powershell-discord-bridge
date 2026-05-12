@@ -5,6 +5,7 @@ export type TerminalWriteSource = 'local' | 'bridge' | 'system';
 export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter';
 export type TerminalSnapshotReason = 'before-send' | 'after-complete' | 'manual';
 export type TerminalSlotId = 1 | 2 | 3 | 4;
+export type BridgeReplyFormat = 'command' | 'plain-text';
 export type CompletionReason =
   | 'prompt_ready'
   | 'idle_stable'
@@ -20,15 +21,17 @@ export interface TerminalDimensions {
 
 export interface BridgeSettings {
   autoScreenshotOnReply: boolean;
+  replyFormat: BridgeReplyFormat;
   softTimeoutMs: number;
-  hardTimeoutMs: number;
+  hardTimeoutMs: number | null;
   bridgeDimensions: TerminalDimensions;
 }
 
 export interface BridgeSettingsUpdate {
   autoScreenshotOnReply?: boolean;
+  replyFormat?: BridgeReplyFormat;
   softTimeoutMs?: number;
-  hardTimeoutMs?: number;
+  hardTimeoutMs?: number | null;
   bridgeDimensions?: Partial<TerminalDimensions>;
 }
 
@@ -53,7 +56,6 @@ export interface TerminalSlotSettingsUpdateResult {
 
 export interface BootstrapState {
   defaultCwd: string;
-  defaultWorkspaceCwd: string;
   shellLabel: string;
   bridgeDimensions: TerminalDimensions;
   bridgeSettings: BridgeSettings;
@@ -146,6 +148,13 @@ export interface TerminalSessionSnapshot extends TerminalDimensions {
   rawTranscriptLength: number;
 }
 
+export interface TerminalScreenshotExportData extends TerminalDimensions {
+  sessionId: string;
+  title?: string;
+  cwd?: string;
+  transcript: string;
+}
+
 export interface TerminalSessionState extends TerminalDimensions {
   sessionId: string;
   status: SessionStatus;
@@ -171,6 +180,8 @@ export interface TerminalSendInputRequest {
 export interface TerminalWaitForCompletionRequest {
   sessionId: string;
   expectOutput?: boolean;
+  beforeScreenText?: string;
+  submittedText?: string;
   submittedTextProbe?: string;
   baselinePromptReadyAt?: string;
   baselineRawOutputOffset?: number;
@@ -178,7 +189,7 @@ export interface TerminalWaitForCompletionRequest {
   settleMs?: number;
   softTimeoutMs?: number;
   noOutputTimeoutMs?: number;
-  hardTimeoutMs?: number;
+  hardTimeoutMs?: number | null;
   pollIntervalMs?: number;
   stablePollCount?: number;
 }
@@ -209,6 +220,7 @@ export interface TerminalAutomationTurnRequest {
   sessionId: string;
   kind: 'text' | 'control';
   content?: string;
+  appendEnter?: boolean;
   key?: TerminalControlKey;
   expectOutput?: boolean;
   captureBefore?: boolean;
@@ -284,7 +296,7 @@ export interface TerminalApi {
   onSessionUpdated(listener: (session: TerminalSessionSummary) => void): () => void;
   onSessionData(listener: (event: TerminalSessionDataEvent) => void): () => void;
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void;
-  setDefaultWorkspaceCwd(cwd: string): Promise<string>;
   updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings>;
   publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void>;
+  getTerminalScreenshotExport(sessionId: string): Promise<TerminalScreenshotExportData>;
 }

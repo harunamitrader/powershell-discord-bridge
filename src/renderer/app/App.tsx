@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from 'react';
 import type {
+  BridgeReplyFormat,
   BootstrapState,
   BridgeSettings,
   TerminalSessionSummary,
@@ -9,13 +10,29 @@ import type {
 import { TerminalViewport } from '../components/TerminalViewport';
 
 interface SettingsDraft {
-  defaultWorkspaceCwd: string;
   autoScreenshotOnReply: boolean;
-  softTimeoutMs: string;
-  hardTimeoutMs: string;
+  replyFormat: BridgeReplyFormat;
+  softTimeoutSeconds: string;
+  hardTimeoutSeconds: string;
+  hardTimeoutUnlimited: boolean;
   bridgeCols: string;
   bridgeRows: string;
 }
+
+const MIN_BRIDGE_COLS = 40;
+const MAX_BRIDGE_COLS = 400;
+const MIN_BRIDGE_ROWS = 10;
+const MAX_BRIDGE_ROWS = 120;
+const MIN_SOFT_TIMEOUT_MS = 1000;
+const MAX_SOFT_TIMEOUT_MS = 300000;
+const MIN_HARD_TIMEOUT_MS = 5000;
+const MAX_HARD_TIMEOUT_MS = 7200000;
+const DEFAULT_HARD_TIMEOUT_MS = 7200000;
+const MIN_SOFT_TIMEOUT_SECONDS = MIN_SOFT_TIMEOUT_MS / 1000;
+const MAX_SOFT_TIMEOUT_SECONDS = MAX_SOFT_TIMEOUT_MS / 1000;
+const MIN_HARD_TIMEOUT_SECONDS = MIN_HARD_TIMEOUT_MS / 1000;
+const MAX_HARD_TIMEOUT_SECONDS = MAX_HARD_TIMEOUT_MS / 1000;
+const DEFAULT_HARD_TIMEOUT_SECONDS = DEFAULT_HARD_TIMEOUT_MS / 1000;
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<BootstrapState | null>(null);
@@ -24,25 +41,28 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [bridgeSettings, setBridgeSettings] = useState<BridgeSettings>({
     autoScreenshotOnReply: false,
-    softTimeoutMs: 20000,
-    hardTimeoutMs: 120000,
+    replyFormat: 'plain-text',
+    softTimeoutMs: 60000,
+    hardTimeoutMs: null,
     bridgeDimensions: {
-      cols: 120,
-      rows: 32
+      cols: 100,
+      rows: 100
     }
   });
   const [settingsDraft, setSettingsDraft] = useState<SettingsDraft>({
-    defaultWorkspaceCwd: '',
     autoScreenshotOnReply: false,
-    softTimeoutMs: '20000',
-    hardTimeoutMs: '120000',
-    bridgeCols: '120',
-    bridgeRows: '32'
+    replyFormat: 'plain-text',
+    softTimeoutSeconds: '60',
+    hardTimeoutSeconds: String(DEFAULT_HARD_TIMEOUT_SECONDS),
+    hardTimeoutUnlimited: true,
+    bridgeCols: '100',
+    bridgeRows: '100'
   });
   const [slotDrafts, setSlotDrafts] = useState<TerminalSlotSettings[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [restartingSlotId, setRestartingSlotId] = useState<TerminalSlotId | null>(null);
+  const [redrawingSlotId, setRedrawingSlotId] = useState<TerminalSlotId | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
@@ -74,7 +94,7 @@ export function App() {
       setSessions(state.sessions);
       setSlotSettings(state.terminalSlots);
       setBridgeSettings(state.bridgeSettings);
-      setSettingsDraft(createSettingsDraft(state.defaultWorkspaceCwd, state.bridgeSettings));
+      setSettingsDraft(createSettingsDraft(state.bridgeSettings));
       setSlotDrafts(state.terminalSlots);
       setActiveSessionId(state.sessions[0]?.id ?? null);
     })();
@@ -124,7 +144,7 @@ export function App() {
 
   function openSettings() {
     setSettingsError(null);
-    setSettingsDraft(createSettingsDraft(bootstrapState?.defaultWorkspaceCwd ?? '', bridgeSettings));
+    setSettingsDraft(createSettingsDraft(bridgeSettings));
     setSlotDrafts(slotSettings);
     setSettingsOpen(true);
   }
@@ -139,12 +159,16 @@ export function App() {
   }
 
   async function saveSettings() {
-    const softTimeoutMs = Number(settingsDraft.softTimeoutMs);
-    const hardTimeoutMs = Number(settingsDraft.hardTimeoutMs);
-    const cols = Number(settingsDraft.bridgeCols);
-    const rows = Number(settingsDraft.bridgeRows);
+    const softTimeoutSeconds = parseBoundedInteger(settingsDraft.softTimeoutSeconds, MIN_SOFT_TIMEOUT_SECONDS, MAX_SOFT_TIMEOUT_SECONDS);
+    const softTimeoutMs = softTimeoutSeconds * 1000;
+    const hardTimeoutSeconds = settingsDraft.hardTimeoutUnlimited
+      ? null
+      : parseBoundedInteger(settingsDraft.hardTimeoutSeconds, MIN_HARD_TIMEOUT_SECONDS, MAX_HARD_TIMEOUT_SECONDS);
+    const hardTimeoutMs = hardTimeoutSeconds === null ? null : hardTimeoutSeconds * 1000;
+    const cols = parseBoundedInteger(settingsDraft.bridgeCols, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS);
+    const rows = parseBoundedInteger(settingsDraft.bridgeRows, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS);
 
-    if (!Number.isFinite(softTimeoutMs) || !Number.isFinite(hardTimeoutMs) || !Number.isFinite(cols) || !Number.isFinite(rows)) {
+    if (!Number.isFinite(softTimeoutSeconds) || (!settingsDraft.hardTimeoutUnlimited && !Number.isFinite(hardTimeoutSeconds)) || !Number.isFinite(cols) || !Number.isFinite(rows)) {
       setSettingsError('数値設定を確認してください。');
       return;
     }
@@ -156,6 +180,7 @@ export function App() {
     try {
       const updatedBridgeSettings = await window.terminalApp.updateBridgeSettings({
         autoScreenshotOnReply: settingsDraft.autoScreenshotOnReply,
+        replyFormat: settingsDraft.replyFormat,
         softTimeoutMs,
         hardTimeoutMs,
         bridgeDimensions: {
@@ -164,8 +189,6 @@ export function App() {
         }
       });
       setBridgeSettings(updatedBridgeSettings);
-
-      const savedCwd = await window.terminalApp.setDefaultWorkspaceCwd(settingsDraft.defaultWorkspaceCwd);
 
       const updatedSlots: TerminalSlotSettings[] = [];
       for (const slotDraft of slotDrafts) {
@@ -182,8 +205,6 @@ export function App() {
         current
           ? {
               ...current,
-              defaultCwd: savedCwd,
-              defaultWorkspaceCwd: savedCwd,
               bridgeSettings: updatedBridgeSettings,
               terminalSlots: updatedSlots
             }
@@ -200,18 +221,40 @@ export function App() {
   }
 
   async function restartSlot(slotId: TerminalSlotId) {
+    const slotName = findSlotName(slotSettings, slotId);
+    if (!window.confirm(`${slotName} を再起動しますか？\n現在の PowerShell セッションは終了して、新しいセッションに置き換わります。`)) {
+      return;
+    }
+
     setRestartingSlotId(slotId);
     setFeedback(null);
     try {
       const session = await window.terminalApp.restartTerminalSlot(slotId);
       setSessions((current) => upsertSession(current, session));
       setActiveSessionId(session.id);
-      setFeedback(`${findSlotName(slotSettings, slotId)} を再起動しました。`);
+      setFeedback(`${slotName} を再起動しました。`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setFeedback(`再起動に失敗しました: ${message}`);
     } finally {
       setRestartingSlotId(null);
+    }
+  }
+
+  async function redrawSlot(slotId: TerminalSlotId, session: TerminalSessionSummary) {
+    setRedrawingSlotId(slotId);
+    setFeedback(null);
+    try {
+      await window.terminalApp.redrawJiggle({
+        sessionId: session.id
+      });
+      scheduleViewSnapshotPublish();
+      setFeedback(`${findSlotName(slotSettings, slotId)} を再描画しました。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFeedback(`再描画に失敗しました: ${message}`);
+    } finally {
+      setRedrawingSlotId(null);
     }
   }
 
@@ -269,7 +312,6 @@ export function App() {
           </div>
           <div className="titlebar__meta">
             <span>{bootstrapState?.shellLabel ?? 'PowerShell'}</span>
-            <span>{bootstrapState?.defaultWorkspaceCwd ?? bootstrapState?.defaultCwd ?? ''}</span>
           </div>
           <div className="titlebar__actions">
             <button className="action-button" onClick={openSettings}>
@@ -331,8 +373,19 @@ export function App() {
                     <span className={status.className}>{status.label}</span>
                     <button
                       className="action-button"
+                      onClick={() => {
+                        if (session) {
+                          void redrawSlot(slot.slotId, session);
+                        }
+                      }}
+                      disabled={!session || redrawingSlotId === slot.slotId || restartingSlotId === slot.slotId}
+                    >
+                      Redraw
+                    </button>
+                    <button
+                      className="action-button"
                       onClick={() => void restartSlot(slot.slotId)}
-                      disabled={restartingSlotId === slot.slotId}
+                      disabled={restartingSlotId === slot.slotId || redrawingSlotId === slot.slotId}
                     >
                       Restart
                     </button>
@@ -399,83 +452,97 @@ export function App() {
 
                 <div className="settings-form">
                   <label className="settings-field">
-                    <span className="settings-field__label">Default workspace directory</span>
-                    <input
+                    <span className="settings-field__label">Discord reply format</span>
+                    <select
                       className="settings-field__input"
-                      value={settingsDraft.defaultWorkspaceCwd}
+                      value={settingsDraft.replyFormat}
                       onChange={(event) =>
                         setSettingsDraft((current) => ({
                           ...current,
-                          defaultWorkspaceCwd: event.target.value
+                          replyFormat: event.target.value as BridgeReplyFormat
+                        }))
+                      }
+                    >
+                      <option value="command">Code block</option>
+                      <option value="plain-text">Plain text</option>
+                    </select>
+                  </label>
+                  <label className="settings-field">
+                    <span className="settings-field__label">Soft timeout (s)</span>
+                    <input
+                      className="settings-field__input"
+                      type="number"
+                      min={MIN_SOFT_TIMEOUT_SECONDS}
+                      max={MAX_SOFT_TIMEOUT_SECONDS}
+                      step={1}
+                      value={settingsDraft.softTimeoutSeconds}
+                      onChange={(event) =>
+                        setSettingsDraft((current) => ({
+                          ...current,
+                          softTimeoutSeconds: event.target.value
                         }))
                       }
                     />
                   </label>
                   <label className="settings-field">
-                    <span className="settings-field__label">Soft timeout (ms)</span>
+                    <span className="settings-field__label">Hard timeout (s)</span>
                     <input
                       className="settings-field__input"
                       type="number"
-                      min={1000}
-                      step={1000}
-                      value={settingsDraft.softTimeoutMs}
+                      min={MIN_HARD_TIMEOUT_SECONDS}
+                      max={MAX_HARD_TIMEOUT_SECONDS}
+                      step={1}
+                      value={settingsDraft.hardTimeoutSeconds}
+                      disabled={settingsDraft.hardTimeoutUnlimited}
                       onChange={(event) =>
                         setSettingsDraft((current) => ({
                           ...current,
-                          softTimeoutMs: event.target.value
+                          hardTimeoutSeconds: event.target.value
                         }))
                       }
                     />
                   </label>
-                  <label className="settings-field">
-                    <span className="settings-field__label">Hard timeout (ms)</span>
+                  <label className="settings-toggle">
                     <input
-                      className="settings-field__input"
-                      type="number"
-                      min={5000}
-                      step={1000}
-                      value={settingsDraft.hardTimeoutMs}
+                      type="checkbox"
+                      checked={settingsDraft.hardTimeoutUnlimited}
                       onChange={(event) =>
                         setSettingsDraft((current) => ({
                           ...current,
-                          hardTimeoutMs: event.target.value
+                          hardTimeoutUnlimited: event.target.checked
                         }))
                       }
                     />
+                    <div className="settings-toggle__body">
+                      <span className="settings-toggle__title">Unlimited hard timeout</span>
+                      <span className="settings-toggle__description">Disable forced timeout and wait until completion or manual stop.</span>
+                    </div>
                   </label>
                   <div className="settings-grid">
                     <label className="settings-field">
-                      <span className="settings-field__label">Bridge cols</span>
+                      <span className="settings-field__label">{`Bridge cols (${MIN_BRIDGE_COLS}-${MAX_BRIDGE_COLS})`}</span>
                       <input
                         className="settings-field__input"
                         type="number"
-                        min={40}
-                        max={240}
+                        min={MIN_BRIDGE_COLS}
+                        max={MAX_BRIDGE_COLS}
                         step={1}
                         value={settingsDraft.bridgeCols}
-                        onChange={(event) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            bridgeCols: event.target.value
-                          }))
-                        }
+                        onChange={(event) => updateBoundedIntegerDraft(setSettingsDraft, 'bridgeCols', event.target.value, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS)}
+                        onBlur={() => clampBoundedIntegerDraft(setSettingsDraft, 'bridgeCols', settingsDraft.bridgeCols, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS)}
                       />
                     </label>
                     <label className="settings-field">
-                      <span className="settings-field__label">Bridge rows</span>
+                      <span className="settings-field__label">{`Bridge rows (${MIN_BRIDGE_ROWS}-${MAX_BRIDGE_ROWS})`}</span>
                       <input
                         className="settings-field__input"
                         type="number"
-                        min={10}
-                        max={80}
+                        min={MIN_BRIDGE_ROWS}
+                        max={MAX_BRIDGE_ROWS}
                         step={1}
                         value={settingsDraft.bridgeRows}
-                        onChange={(event) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            bridgeRows: event.target.value
-                          }))
-                        }
+                        onChange={(event) => updateBoundedIntegerDraft(setSettingsDraft, 'bridgeRows', event.target.value, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS)}
+                        onBlur={() => clampBoundedIntegerDraft(setSettingsDraft, 'bridgeRows', settingsDraft.bridgeRows, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS)}
                       />
                     </label>
                   </div>
@@ -509,7 +576,7 @@ export function App() {
                             />
                           </label>
                           <label className="settings-field">
-                            <span className="settings-field__label">Working directory</span>
+                            <span className="settings-field__label">Default working directory</span>
                             <input
                               className="settings-field__input"
                               value={slot.cwd}
@@ -541,15 +608,90 @@ export function App() {
   );
 }
 
-function createSettingsDraft(defaultWorkspaceCwd: string, bridgeSettings: BridgeSettings): SettingsDraft {
+function createSettingsDraft(bridgeSettings: BridgeSettings): SettingsDraft {
   return {
-    defaultWorkspaceCwd,
     autoScreenshotOnReply: bridgeSettings.autoScreenshotOnReply,
-    softTimeoutMs: String(bridgeSettings.softTimeoutMs),
-    hardTimeoutMs: String(bridgeSettings.hardTimeoutMs),
+    replyFormat: bridgeSettings.replyFormat,
+    softTimeoutSeconds: String(Math.round(bridgeSettings.softTimeoutMs / 1000)),
+    hardTimeoutSeconds:
+      bridgeSettings.hardTimeoutMs === null ? String(DEFAULT_HARD_TIMEOUT_SECONDS) : String(Math.round(bridgeSettings.hardTimeoutMs / 1000)),
+    hardTimeoutUnlimited: bridgeSettings.hardTimeoutMs === null,
     bridgeCols: String(bridgeSettings.bridgeDimensions.cols),
     bridgeRows: String(bridgeSettings.bridgeDimensions.rows)
   };
+}
+
+function updateBoundedIntegerDraft(
+  setSettingsDraft: Dispatch<SetStateAction<SettingsDraft>>,
+  key: 'bridgeCols' | 'bridgeRows',
+  nextValue: string,
+  min: number,
+  max: number
+) {
+  const normalized = nextValue.trim();
+  if (normalized === '') {
+    setSettingsDraft((current) => ({
+      ...current,
+      [key]: normalized
+    }));
+    return;
+  }
+
+  if (!/^\d+$/.test(normalized) || !isNumericPrefixWithinRange(normalized, min, max)) {
+    return;
+  }
+
+  setSettingsDraft((current) => ({
+    ...current,
+    [key]: normalized
+  }));
+}
+
+function clampBoundedIntegerDraft(
+  setSettingsDraft: Dispatch<SetStateAction<SettingsDraft>>,
+  key: 'bridgeCols' | 'bridgeRows',
+  currentValue: string,
+  min: number,
+  max: number
+) {
+  const clamped = clampBoundedInteger(currentValue, min, max);
+  setSettingsDraft((current) => ({
+    ...current,
+    [key]: String(clamped)
+  }));
+}
+
+function parseBoundedInteger(value: string, min: number, max: number): number {
+  if (!/^\d+$/.test(value.trim())) {
+    return Number.NaN;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    return Number.NaN;
+  }
+
+  return parsed;
+}
+
+function clampBoundedInteger(value: string, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return min;
+  }
+
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function isNumericPrefixWithinRange(value: string, min: number, max: number): boolean {
+  for (let candidate = min; candidate <= max; candidate += 1) {
+    const candidateText = String(candidate);
+    if (candidateText.startsWith(value)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function upsertSession(current: TerminalSessionSummary[], next: TerminalSessionSummary): TerminalSessionSummary[] {
@@ -563,6 +705,11 @@ function upsertSession(current: TerminalSessionSummary[], next: TerminalSessionS
   if (next.slotId) {
     const existingBySlot = current.findIndex((session) => session.slotId === next.slotId);
     if (existingBySlot !== -1) {
+      const existing = current[existingBySlot];
+      if (existing.id !== next.id && existing.status !== 'exited' && next.status === 'exited') {
+        return current;
+      }
+
       const updated = [...current];
       updated[existingBySlot] = next;
       return updated;

@@ -14,6 +14,7 @@ import type {
   TerminalSessionDataEvent,
   TerminalSessionExitEvent,
   TerminalSessionRenameRequest,
+  TerminalScreenshotExportData,
   TerminalSessionSummary,
   TerminalSnapshotRequest,
   TerminalViewSnapshot,
@@ -78,7 +79,6 @@ export function registerIpc(options: RegisterIpcOptions): void {
 
   ipcMain.handle('terminal:bootstrap', async (): Promise<BootstrapState> => ({
     defaultCwd: terminalSessionManager.getDefaultCwd(),
-    defaultWorkspaceCwd: preferencesStore.getDefaultWorkspaceCwd(),
     shellLabel: terminalSessionManager.getShellLabel(),
     bridgeDimensions: terminalSessionManager.getBridgeDimensions(),
     bridgeSettings: preferencesStore.getBridgeSettings(),
@@ -140,10 +140,6 @@ export function registerIpc(options: RegisterIpcOptions): void {
 
   ipcMain.handle('terminal:set-input-lock', async (_event, update: TerminalInputLockUpdate) => {
     return terminalSessionManager.setInputLock(update);
-  });
-
-  ipcMain.handle('terminal:set-default-workspace-cwd', async (_event, cwd: string) => {
-    return preferencesStore.setDefaultWorkspaceCwd(cwd);
   });
 
   ipcMain.handle('terminal:update-bridge-settings', async (_event, update: BridgeSettingsUpdate): Promise<BridgeSettings> => {
@@ -208,5 +204,26 @@ export function registerIpc(options: RegisterIpcOptions): void {
     const outputPath = path.join(app.getPath('userData'), 'debug', 'live-view-snapshot.json');
     mkdirSync(path.dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, JSON.stringify(snapshot, null, 2), 'utf8');
+  });
+
+  ipcMain.handle('terminal:get-screenshot-export', async (_event, sessionId: string): Promise<TerminalScreenshotExportData> => {
+    const session = terminalSessionManager.listSessions().find((entry) => entry.id === sessionId);
+    if (!session) {
+      throw new Error(`Unknown terminal session: ${sessionId}`);
+    }
+
+    const [state, transcript] = await Promise.all([
+      terminalSessionManager.getSessionState(sessionId),
+      terminalSessionManager.getRawTranscriptSince(sessionId, 0)
+    ]);
+
+    return {
+      sessionId,
+      title: session.title,
+      cwd: session.cwd,
+      cols: state.cols,
+      rows: state.rows,
+      transcript
+    };
   });
 }

@@ -1,3 +1,5 @@
+import type { BridgeReplyFormat } from '../../shared/terminal';
+
 interface ReplyFormatterOptions {
   maxMessages: number;
   maxMessageLength: number;
@@ -11,10 +13,12 @@ const CODE_BLOCK_SUFFIX = '\n```';
 export class DiscordReplyFormatter {
   constructor(private readonly options: ReplyFormatterOptions) {}
 
-  format(diffText: string): string[] {
+  format(diffText: string, replyFormat: BridgeReplyFormat = 'command'): string[] {
     const normalized = escapeCodeFences(diffText.trim().length > 0 ? diffText : '(no diff)');
-    const maxChunkPayload = Math.max(1, Math.min(this.options.targetChunkLength, this.options.maxMessageLength - CODE_BLOCK_PREFIX.length - CODE_BLOCK_SUFFIX.length));
-    const chunks = chunkText(normalized, maxChunkPayload).map(wrapCodeBlock);
+    const maxChunkPayload = replyFormat === 'command'
+      ? Math.max(1, Math.min(this.options.targetChunkLength, this.options.maxMessageLength - CODE_BLOCK_PREFIX.length - CODE_BLOCK_SUFFIX.length))
+      : Math.max(1, Math.min(this.options.targetChunkLength, this.options.maxMessageLength));
+    const chunks = chunkText(normalized, maxChunkPayload).map((chunk) => formatChunk(chunk, replyFormat));
 
     if (chunks.length <= this.options.maxMessages) {
       return chunks;
@@ -22,10 +26,11 @@ export class DiscordReplyFormatter {
 
     const allowed = chunks.slice(0, this.options.maxMessages);
     const noteSuffix = `\n${this.options.truncatedNote}`;
-    const maxLastPayload =
-      this.options.maxMessageLength - CODE_BLOCK_PREFIX.length - CODE_BLOCK_SUFFIX.length - noteSuffix.length;
-    const lastContent = unwrapCodeBlock(allowed[this.options.maxMessages - 1]).slice(0, Math.max(1, maxLastPayload));
-    allowed[this.options.maxMessages - 1] = wrapCodeBlock(`${lastContent}${noteSuffix}`);
+    const maxLastPayload = replyFormat === 'command'
+      ? this.options.maxMessageLength - CODE_BLOCK_PREFIX.length - CODE_BLOCK_SUFFIX.length - noteSuffix.length
+      : this.options.maxMessageLength - noteSuffix.length;
+    const lastContent = unwrapChunk(allowed[this.options.maxMessages - 1], replyFormat).slice(0, Math.max(1, maxLastPayload));
+    allowed[this.options.maxMessages - 1] = formatChunk(`${lastContent}${noteSuffix}`, replyFormat);
     return allowed;
   }
 }
@@ -70,6 +75,14 @@ function wrapCodeBlock(text: string): string {
 
 function unwrapCodeBlock(text: string): string {
   return text.slice(CODE_BLOCK_PREFIX.length, text.length - CODE_BLOCK_SUFFIX.length);
+}
+
+function formatChunk(text: string, replyFormat: BridgeReplyFormat): string {
+  return replyFormat === 'command' ? wrapCodeBlock(text) : text;
+}
+
+function unwrapChunk(text: string, replyFormat: BridgeReplyFormat): string {
+  return replyFormat === 'command' ? unwrapCodeBlock(text) : text;
 }
 
 function escapeCodeFences(text: string): string {

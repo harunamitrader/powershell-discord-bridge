@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 import type { TerminalSessionSummary } from '../../shared/terminal';
+import { createTerminalInstance } from './terminalAppearance';
 
 interface TerminalViewportProps {
   session: TerminalSessionSummary;
@@ -24,39 +25,10 @@ export function TerminalViewport({ session, focused, onActivate }: TerminalViewp
       return;
     }
 
-    const terminal = new Terminal({
-      allowProposedApi: false,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      convertEol: true,
+    const terminal = createTerminalInstance({
       cols: session.cols,
       rows: session.rows,
-      fontFamily: "Consolas, 'Cascadia Mono', monospace",
-      fontSize: 14,
-      lineHeight: 1.2,
-      scrollback: 5000,
-      theme: {
-        background: '#1e1e1e',
-        black: '#1e1e1e',
-        blue: '#3794ff',
-        brightBlack: '#666666',
-        brightBlue: '#6cb6ff',
-        brightCyan: '#4ec9b0',
-        brightGreen: '#b5cea8',
-        brightMagenta: '#d670d6',
-        brightRed: '#f48771',
-        brightWhite: '#ffffff',
-        brightYellow: '#dcdcaa',
-        cursor: '#ffffff',
-        cyan: '#4ec9b0',
-        foreground: '#cccccc',
-        green: '#608b4e',
-        magenta: '#c586c0',
-        red: '#cd3131',
-        selectionBackground: '#264f78',
-        white: '#d4d4d4',
-        yellow: '#dcdcaa'
-      }
+      scrollback: 5000
     });
 
     const fitAddon = new FitAddon();

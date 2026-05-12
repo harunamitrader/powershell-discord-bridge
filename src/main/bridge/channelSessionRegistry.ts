@@ -6,12 +6,13 @@ export type BridgeRequestState =
   | 'queued'
   | 'running'
   | 'aborting'
+  | 'forwarded'
   | 'completed'
   | 'failed'
   | 'rejected'
   | 'cancelled';
 
-export type BridgeRequestKind = 'text' | 'control' | 'stop' | 'screenshot';
+export type BridgeRequestKind = 'text' | 'control' | 'stop' | 'screenshot' | 'window-screenshot';
 
 export interface ChannelSessionBinding {
   slotId: TerminalSlotId;
@@ -34,6 +35,7 @@ export interface BridgeRequestRecord {
   userId?: string;
   messageId?: string;
   content?: string;
+  appendEnter?: boolean;
   controlKey?: TerminalControlKey;
   expectOutput: boolean;
 }
@@ -44,6 +46,7 @@ export interface EnqueueRequestInput {
   userId?: string;
   messageId?: string;
   content?: string;
+  appendEnter?: boolean;
   controlKey?: TerminalControlKey;
   expectOutput?: boolean;
 }
@@ -349,6 +352,7 @@ function createRequest(input: EnqueueRequestInput): BridgeRequestRecord {
     userId: input.userId,
     messageId: input.messageId,
     content: input.content,
+    appendEnter: input.appendEnter,
     controlKey: input.controlKey,
     expectOutput: input.expectOutput ?? input.kind === 'text'
   };

@@ -1,6 +1,6 @@
+import { app, type BrowserWindow } from 'electron';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { BrowserWindow } from 'electron';
 import { AttachmentBuilder, ChannelType, Client, GatewayIntentBits, type Guild, type Message, type TextChannel } from 'discord.js';
 import type {
   TerminalAutomationTurnResult,
@@ -18,8 +18,10 @@ import {
   type EnqueueRequestResult
 } from './channelSessionRegistry';
 import type { BridgeRuntimeConfig } from './bridgeConfig';
+import { DiscordReplyFormatter } from './discordReplyFormatter';
 import { TerminalAutomationService } from './terminalAutomationService';
 import { buildWindowScreenshotFilename, captureWindowScreenshotPng } from './windowScreenshotCapture';
+import { buildTerminalScreenshotFilename, captureTerminalScreenshotPng } from './terminalScreenshotCapture';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import { TerminalSlotService } from '../app/terminalSlotService';
 
@@ -29,16 +31,40 @@ const REACTION_SUCCESS = '✅';
 const REACTION_FAILURE = '⚠️';
 const REACTION_REJECTED = '🚫';
 
-const STOPPED_REPLY = wrapCodeBlock('[stopped]');
-const STOP_REQUESTED_REPLY = wrapCodeBlock('[stop requested]');
-const NO_ACTIVE_REQUEST_REPLY = wrapCodeBlock('[no active request]');
-const QUEUE_FULL_REPLY = wrapCodeBlock('Bridge busy: one request is already running and one is already queued.');
-const HARD_RESET_REPLY = wrapCodeBlock('[stopped after hard reset]');
-const AUTO_SCREENSHOT_ENABLED_REPLY = wrapCodeBlock('[auto screenshot after reply: enabled]');
-const AUTO_SCREENSHOT_DISABLED_REPLY = wrapCodeBlock('[auto screenshot after reply: disabled]');
-const AUTO_SCREENSHOT_STATUS_ON_REPLY = wrapCodeBlock('[auto screenshot after reply: on]');
-const AUTO_SCREENSHOT_STATUS_OFF_REPLY = wrapCodeBlock('[auto screenshot after reply: off]');
-const AUTO_SCREENSHOT_ATTACHMENT_REPLY = wrapCodeBlock('[auto screenshot after completion]');
+const STOPPED_REPLY = '[stopped]';
+const STOP_REQUESTED_REPLY = '[stop requested]';
+const TERMINAL_RESTARTED_REPLY = '[terminal restarted]';
+const APP_RESTARTING_REPLY = '[app restarting]';
+const NO_ACTIVE_REQUEST_REPLY = '[no active request]';
+const QUEUE_FULL_REPLY = 'Bridge busy: one request is already running and one is already queued.';
+const AUTO_SCREENSHOT_ENABLED_REPLY = '[auto screenshot after reply: enabled]';
+const AUTO_SCREENSHOT_DISABLED_REPLY = '[auto screenshot after reply: disabled]';
+const AUTO_SCREENSHOT_STATUS_ON_REPLY = '[auto screenshot after reply: on]';
+const AUTO_SCREENSHOT_STATUS_OFF_REPLY = '[auto screenshot after reply: off]';
+const AUTO_SCREENSHOT_ATTACHMENT_REPLY = '[auto screenshot after completion: terminal]';
+const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
+const HELP_REPLY = [
+  'Bridge commands:',
+  '!help',
+  '!restartterminal / !rst',
+  '!restartapp / !rsa',
+  '!stop',
+  '!enter',
+  '!esc',
+  '!ctrlc / !ctrl-c',
+  '!screenshot / !ss',
+  '!windowscreenshot / !wss',
+  '!autoscreenshot',
+  '!autoscreenshoton',
+  '!autoscreenshotoff',
+  '!hardtimeout',
+  '!hardtimeoutunlimited',
+  '!replyformat',
+  '!replyformatcommand',
+  '!replyformattext',
+  '!/command -> send /command with Enter',
+  '!noenterTEXT -> send TEXT without Enter'
+].join('\n');
 
 interface ProcessingLogEntry {
   requestId: string;
@@ -61,11 +87,21 @@ interface RequestContext {
 
 type ParsedBridgeMessage =
   | { kind: 'ignore' }
+  | { kind: 'help' }
+  | { kind: 'restart-terminal' }
+  | { kind: 'restart-app' }
   | { kind: 'stop' }
   | { kind: 'settings'; setting: 'auto-screenshot'; value?: boolean }
+  | { kind: 'settings'; setting: 'hard-timeout'; value?: number | null }
+  | { kind: 'settings'; setting: 'reply-format'; value?: 'command' | 'plain-text' }
   | { kind: 'screenshot'; expectOutput: false }
+  | { kind: 'window-screenshot'; expectOutput: false }
   | { kind: 'control'; key: TerminalControlKey; expectOutput: boolean }
-  | { kind: 'text'; content: string; expectOutput: boolean };
+  | { kind: 'text'; content: string; expectOutput: boolean; appendEnter?: boolean };
+
+type BusyPassthroughMessage =
+  | Extract<ParsedBridgeMessage, { kind: 'control' }>
+  | Extract<ParsedBridgeMessage, { kind: 'text' }>;
 
 interface BridgeExecutionResult {
   completionReason: string;
@@ -79,6 +115,7 @@ export class DiscordBridgeService {
   private client?: Client;
   private readonly requestContexts = new Map<string, RequestContext>();
   private readonly abortingChannels = new Set<string>();
+  private readonly replyFormatter: DiscordReplyFormatter;
 
   constructor(
     private readonly channelSessionRegistry: ChannelSessionRegistry,
@@ -88,7 +125,9 @@ export class DiscordBridgeService {
     private readonly config: BridgeRuntimeConfig,
     private readonly getMainWindow: () => BrowserWindow | undefined,
     private readonly preferencesStore: PreferencesStore
-  ) {}
+  ) {
+    this.replyFormatter = new DiscordReplyFormatter(config.reply);
+  }
 
   async start(): Promise<void> {
     if (!this.config.discordBotToken) {
@@ -225,8 +264,29 @@ export class DiscordBridgeService {
       return;
     }
 
+    if (parsed.kind === 'help') {
+      await this.handleHelpCommand(message);
+      return;
+    }
+
+    if (parsed.kind === 'restart-terminal') {
+      await this.handleRestartTerminalCommand(message, slot.slotId);
+      return;
+    }
+
+    if (parsed.kind === 'restart-app') {
+      await this.handleRestartAppCommand(message);
+      return;
+    }
+
     if (parsed.kind === 'settings') {
       await this.handleSettingsCommand(message, parsed);
+      return;
+    }
+
+    const binding = this.channelSessionRegistry.getBinding(message.channelId);
+    if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed)) {
+      await this.handleBusyPassthroughMessage(message, binding.sessionId, parsed);
       return;
     }
 
@@ -236,6 +296,7 @@ export class DiscordBridgeService {
       userId: message.author.id,
       messageId: message.id,
       content: parsed.kind === 'text' ? parsed.content : undefined,
+      appendEnter: parsed.kind === 'text' ? parsed.appendEnter : undefined,
       controlKey: parsed.kind === 'control' ? parsed.key : undefined,
       expectOutput: parsed.expectOutput
     });
@@ -253,7 +314,7 @@ export class DiscordBridgeService {
     if (result.disposition === 'rejected') {
       this.requestContexts.delete(result.request.requestId);
       await this.tryAddReaction(context.message, REACTION_REJECTED);
-      await this.sendReplies(context.message, [QUEUE_FULL_REPLY]);
+      await this.sendReplies(context.message, this.formatReplyText(QUEUE_FULL_REPLY));
       this.persistProcessingLog({
         requestId: result.request.requestId,
         messageId: result.request.messageId,
@@ -283,7 +344,7 @@ export class DiscordBridgeService {
     const binding = this.channelSessionRegistry.getBinding(message.channelId);
     if (!binding) {
       await this.tryAddReaction(message, REACTION_REJECTED);
-      await this.sendReplies(message, [NO_ACTIVE_REQUEST_REPLY]);
+        await this.sendReplies(message, this.formatReplyText(NO_ACTIVE_REQUEST_REPLY));
       return;
     }
 
@@ -292,13 +353,13 @@ export class DiscordBridgeService {
       aborted = this.channelSessionRegistry.abortChannel(message.channelId);
     } catch {
       await this.tryAddReaction(message, REACTION_REJECTED);
-      await this.sendReplies(message, [NO_ACTIVE_REQUEST_REPLY]);
+      await this.sendReplies(message, this.formatReplyText(NO_ACTIVE_REQUEST_REPLY));
       return;
     }
 
     if (!aborted.running) {
       await this.tryAddReaction(message, REACTION_REJECTED);
-      await this.sendReplies(message, [NO_ACTIVE_REQUEST_REPLY]);
+      await this.sendReplies(message, this.formatReplyText(NO_ACTIVE_REQUEST_REPLY));
       return;
     }
 
@@ -310,7 +371,82 @@ export class DiscordBridgeService {
     }
 
     await this.tryAddReaction(message, REACTION_SUCCESS);
-    await this.sendReplies(message, [STOP_REQUESTED_REPLY]);
+    await this.sendReplies(message, this.formatReplyText(STOP_REQUESTED_REPLY));
+  }
+
+  private async handleHelpCommand(message: Message): Promise<void> {
+    await this.tryAddReaction(message, REACTION_SUCCESS);
+    await this.sendReplies(message, this.formatReplyText(HELP_REPLY));
+  }
+
+  private async handleBusyPassthroughMessage(
+    message: Message,
+    sessionId: string,
+    parsed: BusyPassthroughMessage
+  ): Promise<void> {
+    const startedAt = new Date().toISOString();
+
+    try {
+      if (parsed.kind === 'text') {
+        await this.terminalAutomationService.sendInput({
+          sessionId,
+          content: parsed.content,
+          appendEnter: parsed.appendEnter,
+          source: 'bridge'
+        });
+      } else {
+        this.terminalAutomationService.sendControlKey(sessionId, parsed.key, 'bridge');
+      }
+
+      this.persistProcessingLog({
+        requestId: message.id,
+        messageId: message.id,
+        channelId: message.channelId,
+        sessionId,
+        requestState: 'forwarded',
+        kind: parsed.kind,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        timeoutFlag: false
+      });
+      await this.tryAddReaction(message, REACTION_SUCCESS);
+    } catch (error) {
+      this.persistProcessingLog({
+        requestId: message.id,
+        messageId: message.id,
+        channelId: message.channelId,
+        sessionId,
+        requestState: 'failed',
+        kind: parsed.kind,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        timeoutFlag: toErrorMessage(error).includes('timeout'),
+        error: toErrorMessage(error)
+      });
+      await this.tryAddReaction(message, REACTION_FAILURE);
+      await this.sendReplies(message, this.formatReplyText(`Bridge request failed: ${toErrorMessage(error)}`));
+    }
+  }
+
+  private async handleRestartTerminalCommand(message: Message, slotId: TerminalSlotId): Promise<void> {
+    await this.tryAddReaction(message, REACTION_PROCESSING);
+
+    this.terminalSlotService.restartSlot(slotId);
+    await this.ensureSlotBinding(slotId);
+
+    await this.tryAddReaction(message, REACTION_SUCCESS);
+    await this.sendReplies(message, this.formatReplyText(TERMINAL_RESTARTED_REPLY));
+  }
+
+  private async handleRestartAppCommand(message: Message): Promise<void> {
+    await this.tryAddReaction(message, REACTION_PROCESSING);
+    await this.tryAddReaction(message, REACTION_SUCCESS);
+    await this.sendReplies(message, this.formatReplyText(APP_RESTARTING_REPLY));
+
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 500);
   }
 
   private async handleSettingsCommand(
@@ -318,18 +454,53 @@ export class DiscordBridgeService {
     parsed: Extract<ParsedBridgeMessage, { kind: 'settings' }>
   ): Promise<void> {
     const current = this.preferencesStore.getBridgeSettings();
+    if (parsed.setting === 'auto-screenshot') {
+      const nextValue = parsed.value;
+      if (nextValue === undefined) {
+        await this.tryAddReaction(message, REACTION_SUCCESS);
+        await this.sendReplies(message, this.formatReplyText(current.autoScreenshotOnReply ? AUTO_SCREENSHOT_STATUS_ON_REPLY : AUTO_SCREENSHOT_STATUS_OFF_REPLY));
+        return;
+      }
+
+      const updated = this.preferencesStore.setBridgeSettings({
+        autoScreenshotOnReply: nextValue
+      });
+      await this.tryAddReaction(message, REACTION_SUCCESS);
+      await this.sendReplies(message, this.formatReplyText(updated.autoScreenshotOnReply ? AUTO_SCREENSHOT_ENABLED_REPLY : AUTO_SCREENSHOT_DISABLED_REPLY));
+      return;
+    }
+
+    if (parsed.setting === 'reply-format') {
+      const nextValue = parsed.value;
+      if (nextValue === undefined) {
+        await this.tryAddReaction(message, REACTION_SUCCESS);
+        await this.sendReplies(message, this.formatReplyText(`[reply format: ${formatReplyFormat(current.replyFormat)}]`));
+        return;
+      }
+
+      const updated = this.preferencesStore.setBridgeSettings({
+        replyFormat: nextValue
+      });
+      await this.tryAddReaction(message, REACTION_SUCCESS);
+      await this.sendReplies(message, this.formatReplyText(`[reply format: ${formatReplyFormat(updated.replyFormat)}]`));
+      return;
+    }
+
     const nextValue = parsed.value;
     if (nextValue === undefined) {
       await this.tryAddReaction(message, REACTION_SUCCESS);
-      await this.sendReplies(message, [current.autoScreenshotOnReply ? AUTO_SCREENSHOT_STATUS_ON_REPLY : AUTO_SCREENSHOT_STATUS_OFF_REPLY]);
+      await this.sendReplies(message, this.formatReplyText(`[hard timeout: ${formatHardTimeout(current.hardTimeoutMs)}]`));
       return;
     }
 
     const updated = this.preferencesStore.setBridgeSettings({
-      autoScreenshotOnReply: nextValue
+      hardTimeoutMs: nextValue
     });
     await this.tryAddReaction(message, REACTION_SUCCESS);
-    await this.sendReplies(message, [updated.autoScreenshotOnReply ? AUTO_SCREENSHOT_ENABLED_REPLY : AUTO_SCREENSHOT_DISABLED_REPLY]);
+    await this.sendReplies(
+      message,
+      this.formatReplyText(updated.hardTimeoutMs === null ? HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY : `[hard timeout: ${formatHardTimeout(updated.hardTimeoutMs)}]`)
+    );
   }
 
   private async processRequest(channelId: string, request: BridgeRequestRecord): Promise<void> {
@@ -358,25 +529,15 @@ export class DiscordBridgeService {
     try {
       const result = await this.executeRequest(binding.sessionId, request);
       const aborted = this.abortingChannels.has(channelId) || result.completionReason === 'aborted';
-      const timedOutHard = result.completionReason === 'hard_timeout_failed';
 
-      if (aborted && timedOutHard) {
-        await this.restartBoundSlot(channelId);
-        skipUnlock = true;
-        await this.sendReplies(context.message, [HARD_RESET_REPLY]);
-        await this.tryAddReaction(context.message, REACTION_REJECTED);
-      } else if (aborted) {
-        await this.sendReplies(context.message, [STOPPED_REPLY]);
+      if (aborted) {
+        await this.sendReplies(context.message, this.formatReplyText(STOPPED_REPLY));
         await this.tryAddReaction(context.message, REACTION_REJECTED);
       } else if (!result.success) {
-        if (timedOutHard) {
-          await this.restartBoundSlot(channelId);
-          skipUnlock = true;
-        }
         throw new Error(`completion=${result.completionReason}`);
       } else {
         await this.sendReplies(context.message, result.replyChunks, result.attachments);
-        await this.maybeSendAutoScreenshot(context.message, request);
+        await this.maybeSendAutoScreenshot(context.message, request, binding.sessionId);
         await this.tryAddReaction(context.message, REACTION_SUCCESS);
       }
 
@@ -406,6 +567,7 @@ export class DiscordBridgeService {
           sessionId,
           kind: 'text',
           content: request.content ?? '',
+          appendEnter: request.appendEnter,
           expectOutput: request.expectOutput
         })
       );
@@ -423,6 +585,20 @@ export class DiscordBridgeService {
     }
 
     if (request.kind === 'screenshot') {
+      const capturedAt = new Date().toISOString();
+      const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId), {
+        name: buildTerminalScreenshotFilename(capturedAt)
+      });
+      return {
+        completionReason: 'snapshot_captured',
+        success: true,
+        replyChunks: ['[terminal screenshot]'],
+        diffLength: 0,
+        attachments: [attachment]
+      };
+    }
+
+    if (request.kind === 'window-screenshot') {
       const mainWindow = this.getMainWindow();
       if (!mainWindow) {
         throw new Error('Main window is not available for screenshot capture.');
@@ -453,8 +629,8 @@ export class DiscordBridgeService {
     };
   }
 
-  private async maybeSendAutoScreenshot(message: Message, request: BridgeRequestRecord): Promise<void> {
-    if (request.kind === 'screenshot') {
+  private async maybeSendAutoScreenshot(message: Message, request: BridgeRequestRecord, sessionId: string): Promise<void> {
+    if (request.kind === 'screenshot' || request.kind === 'window-screenshot') {
       return;
     }
 
@@ -462,16 +638,11 @@ export class DiscordBridgeService {
       return;
     }
 
-    const mainWindow = this.getMainWindow();
-    if (!mainWindow) {
-      return;
-    }
-
     const capturedAt = new Date().toISOString();
-    const attachment = new AttachmentBuilder(await captureWindowScreenshotPng(mainWindow), {
-      name: buildWindowScreenshotFilename(capturedAt)
+    const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId), {
+      name: buildTerminalScreenshotFilename(capturedAt)
     });
-    await this.sendReplies(message, [AUTO_SCREENSHOT_ATTACHMENT_REPLY], [attachment]);
+    await this.sendReplies(message, this.formatReplyText(AUTO_SCREENSHOT_ATTACHMENT_REPLY), [attachment]);
   }
 
   private async finishSuccessfulRequest(
@@ -538,7 +709,7 @@ export class DiscordBridgeService {
       error: toErrorMessage(error)
     });
     await this.tryAddReaction(context.message, REACTION_FAILURE);
-    await this.sendReplies(context.message, [wrapCodeBlock(`Bridge request failed: ${toErrorMessage(error)}`)]);
+    await this.sendReplies(context.message, this.formatReplyText(`Bridge request failed: ${toErrorMessage(error)}`));
   }
 
   private async cancelQueuedRequest(request: BridgeRequestRecord): Promise<void> {
@@ -597,6 +768,10 @@ export class DiscordBridgeService {
         }
       });
     }
+  }
+
+  private formatReplyText(text: string): string[] {
+    return this.replyFormatter.format(text, this.preferencesStore.getBridgeSettings().replyFormat);
   }
 
   private async setInputLock(sessionId: string, locked: boolean): Promise<void> {
@@ -731,26 +906,12 @@ export class DiscordBridgeService {
     throw new Error('Discord channel auto-creation requires ALLOW_GUILD_ID when the bot belongs to multiple guilds.');
   }
 
-  private async restartBoundSlot(channelId: string): Promise<void> {
-    const binding = this.channelSessionRegistry.getBinding(channelId);
-    if (!binding) {
-      return;
-    }
-
-    const session = this.terminalSlotService.restartSlot(binding.slotId);
-    this.terminalSlotService.attachSession(binding.slotId, session.id);
-    this.channelSessionRegistry.registerWorkspaceBinding({
-      slotId: binding.slotId,
-      channelId,
-      sessionId: session.id,
-      workspaceName: binding.workspaceName ?? this.terminalSlotService.getSlot(binding.slotId).workspaceName
-    });
-  }
 }
 
 export function parseBridgeMessage(content: string, botUserId?: string): ParsedBridgeMessage {
-  const normalizedForCommand = stripBotMentions(content, botUserId).trim();
-  const normalizedLower = normalizedForCommand.toLowerCase();
+  const normalizedForCommand = stripBotMentions(content, botUserId).replace(/\r\n/g, '\n');
+  const trimmedForCommand = normalizedForCommand.trim();
+  const normalizedLower = trimmedForCommand.toLowerCase();
   const autoScreenshotCommand = parseAutoScreenshotCommand(normalizedLower);
   if (autoScreenshotCommand) {
     return autoScreenshotCommand;
@@ -768,11 +929,37 @@ export function parseBridgeMessage(content: string, botUserId?: string): ParsedB
     case '[[terminal:enter]]':
       return { kind: 'control', key: 'enter', expectOutput: false };
     case '!screenshot':
+    case '!ss':
     case '[[terminal:screenshot]]':
       return { kind: 'screenshot', expectOutput: false };
+    case '!windowscreenshot':
+    case '!wss':
+    case '[[terminal:window-screenshot]]':
+      return { kind: 'window-screenshot', expectOutput: false };
+    case '!help':
+    case '[[terminal:help]]':
+      return { kind: 'help' };
+    case '!restartterminal':
+    case '!rst':
+    case '[[terminal:restart-terminal]]':
+      return { kind: 'restart-terminal' };
+    case '!restartapp':
+    case '!rsa':
+    case '[[terminal:restart-app]]':
+      return { kind: 'restart-app' };
     case '!stop':
     case '[[terminal:stop]]':
       return { kind: 'stop' };
+  }
+
+  const noEnterCommand = parseNoEnterCommand(normalizedForCommand);
+  if (noEnterCommand) {
+    return noEnterCommand;
+  }
+
+  const slashEscapeCommand = parseSlashEscapeCommand(normalizedForCommand);
+  if (slashEscapeCommand) {
+    return slashEscapeCommand;
   }
 
   const normalizedText = normalizeBridgeText(content, botUserId);
@@ -783,6 +970,35 @@ export function parseBridgeMessage(content: string, botUserId?: string): ParsedB
   return {
     kind: 'text',
     content: normalizedText,
+    expectOutput: true
+  };
+}
+
+function parseNoEnterCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'text' }> | null {
+  const leftTrimmed = content.trimStart();
+  const prefix = '!noenter';
+  if (!leftTrimmed.toLowerCase().startsWith(prefix)) {
+    return null;
+  }
+
+  return {
+    kind: 'text',
+    content: leftTrimmed.slice(prefix.length),
+    appendEnter: false,
+    expectOutput: true
+  };
+}
+
+function parseSlashEscapeCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'text' }> | null {
+  const leftTrimmed = content.trimStart();
+  if (!leftTrimmed.startsWith('!/') || leftTrimmed.length <= 2 || /\s/.test(leftTrimmed[2] ?? '')) {
+    return null;
+  }
+
+  return {
+    kind: 'text',
+    content: leftTrimmed.slice(1),
+    appendEnter: true,
     expectOutput: true
   };
 }
@@ -799,8 +1015,42 @@ function parseAutoScreenshotCommand(content: string): Extract<ParsedBridgeMessag
     case '[[terminal:auto-screenshot:off]]':
       return { kind: 'settings', setting: 'auto-screenshot', value: false };
     default:
+      return parseHardTimeoutCommand(content);
+  }
+}
+
+function parseHardTimeoutCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'settings' }> | null {
+  switch (content) {
+    case '!hardtimeout':
+    case '[[terminal:hard-timeout]]':
+      return { kind: 'settings', setting: 'hard-timeout' };
+    case '!hardtimeoutunlimited':
+    case '!hardtimeoutoff':
+    case '[[terminal:hard-timeout:unlimited]]':
+      return { kind: 'settings', setting: 'hard-timeout', value: null };
+    default:
+      return parseReplyFormatCommand(content);
+  }
+}
+
+function parseReplyFormatCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'settings' }> | null {
+  switch (content) {
+    case '!replyformat':
+    case '[[terminal:reply-format]]':
+      return { kind: 'settings', setting: 'reply-format' };
+    case '!replyformatcommand':
+    case '[[terminal:reply-format:command]]':
+      return { kind: 'settings', setting: 'reply-format', value: 'command' };
+    case '!replyformattext':
+    case '[[terminal:reply-format:text]]':
+      return { kind: 'settings', setting: 'reply-format', value: 'plain-text' };
+    default:
       return null;
   }
+}
+
+function isBusyPassthroughMessage(parsed: ParsedBridgeMessage): parsed is BusyPassthroughMessage {
+  return parsed.kind === 'text' || parsed.kind === 'control';
 }
 
 function normalizeWorkspaceChannelName(value: string): string {
@@ -845,6 +1095,14 @@ function escapeRegExp(value: string): string {
 
 function wrapCodeBlock(text: string): string {
   return `\`\`\`text\n${text.replace(/```/g, '``\u200b`')}\n\`\`\``;
+}
+
+function formatHardTimeout(value: number | null): string {
+  return value === null ? 'unlimited' : `${value} ms`;
+}
+
+function formatReplyFormat(value: 'command' | 'plain-text'): string {
+  return value === 'plain-text' ? 'plain text' : 'command';
 }
 
 function toErrorMessage(error: unknown): string {

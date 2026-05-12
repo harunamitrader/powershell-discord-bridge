@@ -13,6 +13,7 @@ import type {
   TerminalSessionDataEvent,
   TerminalSessionExitEvent,
   TerminalSessionRenameRequest,
+  TerminalScreenshotExportData,
   TerminalSessionSnapshot,
   TerminalSessionState,
   TerminalSessionSummary,
@@ -102,14 +103,14 @@ const api: TerminalApi = {
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void {
     return subscribe('terminal:session-exit', listener);
   },
-  async setDefaultWorkspaceCwd(cwd: string): Promise<string> {
-    return ipcRenderer.invoke('terminal:set-default-workspace-cwd', cwd);
-  },
   async updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings> {
     return ipcRenderer.invoke('terminal:update-bridge-settings', update);
   },
   async publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void> {
     await ipcRenderer.invoke('terminal:publish-live-view-snapshot', request);
+  },
+  async getTerminalScreenshotExport(sessionId: string): Promise<TerminalScreenshotExportData> {
+    return ipcRenderer.invoke('terminal:get-screenshot-export', sessionId);
   }
 };
 

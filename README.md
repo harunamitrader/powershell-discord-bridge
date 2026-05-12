@@ -14,7 +14,9 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - 起動時に 4 つの固定 PowerShell 枠を自動で立ち上げる
 - Discord に送った文章を、そのまま PowerShell 側へ入力する
 - 実行結果の差分を Discord に返信する
-- `[[terminal:screenshot]]` で **アプリ画面全体のスクリーンショット**を Discord に返す
+- `!screenshot` / `!ss` で **対象 terminal のスクリーンショット**を Discord に返す
+- `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す
+- 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
 ## 現在の制限
@@ -143,20 +145,37 @@ npm start
 ### よく使うコマンド
 
 - 通常のメッセージ: PowerShell へそのまま送信
+- `!/command`: `/command` をそのまま Enter 付きで送る
+- `!noenterTEXT`: `TEXT` を Enter なしで送る
 - `!enter`: Enter だけ送る
 - `!ctrlc`: Ctrl+C を送る
 - `!esc`: Escape を送る
 - `!stop`: 進行中のリクエスト停止を試みる
-- `!screenshot`: アプリ画面のスクリーンショットを Discord に返す
+- `!restartterminal` / `!rst`: 対応する terminal slot を再起動
+- `!restartapp` / `!rsa`: アプリ自体を再起動
+- `!screenshot` / `!ss`: 対象 terminal のスクリーンショットを返す
+- `!windowscreenshot` / `!wss`: アプリ画面全体のスクリーンショットを返す
 - `!autoscreenshoton`: 各返信完了後の自動スクリーンショット送信を ON
 - `!autoscreenshotoff`: 各返信完了後の自動スクリーンショット送信を OFF
 - `!autoscreenshot`: 現在の ON/OFF 状態を確認
+- `!hardtimeout`: 現在の hard timeout を確認
+- `!hardtimeoutunlimited` / `!hardtimeoutoff`: hard timeout を無制限に変更
+- `!replyformat`: 現在の Discord 返信形式を確認
+- `!replyformatcommand`: Discord 返信形式を code block に変更
+- `!replyformattext`: Discord 返信形式を plain text に変更
 
 設定は Electron アプリ右上の **Settings** から開きます。  
 設定は **Global** と **Per terminal** に分かれています。
 
-- **Global:** 自動スクリーンショット送信 ON/OFF、soft timeout / hard timeout、bridge 用の固定 cols / rows、既定のワークスペースディレクトリ
-- **Per terminal:** ワークスペース名、Discord channel ID、その枠の作業ディレクトリ
+- **Global:** 自動スクリーンショット送信 ON/OFF、Discord reply format、soft timeout / hard timeout、bridge 用の固定 cols / rows
+- **Per terminal:** ワークスペース名、Discord channel ID、その枠の default working directory
+
+初期値は次のとおりです。
+
+- Discord reply format: `plain text`
+- Soft timeout: `60s`
+- Hard timeout: `unlimited`（入力欄の表示値は `7200s`）
+- Bridge size: `100 cols x 100 rows`
 
 ## はじめて使うときのおすすめ確認
 

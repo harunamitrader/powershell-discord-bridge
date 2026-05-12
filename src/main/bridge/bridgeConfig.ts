@@ -50,7 +50,7 @@ export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
     reply: {
       maxMessages: readNumber('BRIDGE_REPLY_MAX_MESSAGES', 5),
       maxMessageLength: readNumber('BRIDGE_REPLY_MAX_LENGTH', 1900),
-      targetChunkLength: readNumber('BRIDGE_REPLY_TARGET_LENGTH', 1800),
+      targetChunkLength: readNumber('BRIDGE_REPLY_TARGET_LENGTH', 1888),
       truncatedNote: '[truncated: diff exceeded Discord reply limit]'
     },
     storage: {

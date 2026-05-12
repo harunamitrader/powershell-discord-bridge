@@ -1,3 +1,4 @@
+import type { BridgeReplyFormat } from '../../shared/terminal';
 import { app, Rectangle } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -6,13 +7,13 @@ interface StoredWindowBounds extends Pick<Rectangle, 'x' | 'y' | 'width' | 'heig
 
 interface StoredPreferences {
   lastCwd?: string;
-  defaultWorkspaceCwd?: string;
   windowBounds?: StoredWindowBounds;
   terminalSlots?: StoredTerminalSlot[];
   bridgeSettings?: {
     autoScreenshotOnReply?: boolean;
+    replyFormat?: BridgeReplyFormat;
     softTimeoutMs?: number;
-    hardTimeoutMs?: number;
+    hardTimeoutMs?: number | null;
     bridgeDimensions?: {
       cols?: number;
       rows?: number;
@@ -29,21 +30,22 @@ interface StoredTerminalSlot {
 
 const DEFAULT_BRIDGE_SETTINGS = {
   autoScreenshotOnReply: false,
-  softTimeoutMs: 20000,
-  hardTimeoutMs: 120000,
+  replyFormat: 'plain-text' as BridgeReplyFormat,
+  softTimeoutMs: 60000,
+  hardTimeoutMs: null,
   bridgeDimensions: {
-    cols: 120,
-    rows: 32
+    cols: 100,
+    rows: 100
   }
 } as const;
 const MIN_BRIDGE_COLS = 40;
 const MIN_BRIDGE_ROWS = 10;
-const MAX_BRIDGE_COLS = 240;
-const MAX_BRIDGE_ROWS = 80;
+const MAX_BRIDGE_COLS = 400;
+const MAX_BRIDGE_ROWS = 120;
 const MIN_SOFT_TIMEOUT_MS = 1000;
 const MAX_SOFT_TIMEOUT_MS = 300000;
 const MIN_HARD_TIMEOUT_MS = 5000;
-const MAX_HARD_TIMEOUT_MS = 600000;
+const MAX_HARD_TIMEOUT_MS = 7200000;
 const SLOT_IDS = [1, 2, 3, 4] as const;
 
 export class PreferencesStore {
@@ -53,6 +55,7 @@ export class PreferencesStore {
   constructor() {
     this.filePath = path.join(app.getPath('userData'), 'preferences.json');
     this.state = this.load();
+    this.removeLegacyDefaultWorkspaceCwd();
     this.ensureTerminalSlotsPersisted();
   }
 
@@ -61,23 +64,12 @@ export class PreferencesStore {
   }
 
   getDefaultWorkspaceCwd(): string {
-    return this.state.defaultWorkspaceCwd?.trim() || this.state.lastCwd || process.cwd();
+    return this.state.lastCwd || app.getPath('home');
   }
 
   setLastCwd(cwd: string): void {
     this.state.lastCwd = cwd;
     this.save();
-  }
-
-  setDefaultWorkspaceCwd(cwd: string): string {
-    const normalized = cwd.trim();
-    if (normalized.length === 0) {
-      delete this.state.defaultWorkspaceCwd;
-    } else {
-      this.state.defaultWorkspaceCwd = normalized;
-    }
-    this.save();
-    return this.getDefaultWorkspaceCwd();
   }
 
   getTerminalSlots(): { slotId: 1 | 2 | 3 | 4; workspaceName: string; channelId: string; cwd: string }[] {
@@ -135,19 +127,21 @@ export class PreferencesStore {
 
   getBridgeSettings(): {
     autoScreenshotOnReply: boolean;
+    replyFormat: BridgeReplyFormat;
     softTimeoutMs: number;
-    hardTimeoutMs: number;
+    hardTimeoutMs: number | null;
     bridgeDimensions: { cols: number; rows: number };
   } {
     return {
       autoScreenshotOnReply: this.state.bridgeSettings?.autoScreenshotOnReply ?? DEFAULT_BRIDGE_SETTINGS.autoScreenshotOnReply,
+      replyFormat: this.state.bridgeSettings?.replyFormat === 'plain-text' ? 'plain-text' : DEFAULT_BRIDGE_SETTINGS.replyFormat,
       softTimeoutMs: clampInteger(
         this.state.bridgeSettings?.softTimeoutMs,
         MIN_SOFT_TIMEOUT_MS,
         MAX_SOFT_TIMEOUT_MS,
         DEFAULT_BRIDGE_SETTINGS.softTimeoutMs
       ),
-      hardTimeoutMs: clampInteger(
+      hardTimeoutMs: clampNullableInteger(
         this.state.bridgeSettings?.hardTimeoutMs,
         MIN_HARD_TIMEOUT_MS,
         MAX_HARD_TIMEOUT_MS,
@@ -172,13 +166,15 @@ export class PreferencesStore {
 
   setBridgeSettings(update: {
     autoScreenshotOnReply?: boolean;
+    replyFormat?: BridgeReplyFormat;
     softTimeoutMs?: number;
-    hardTimeoutMs?: number;
+    hardTimeoutMs?: number | null;
     bridgeDimensions?: { cols?: number; rows?: number };
   }): {
     autoScreenshotOnReply: boolean;
+    replyFormat: BridgeReplyFormat;
     softTimeoutMs: number;
-    hardTimeoutMs: number;
+    hardTimeoutMs: number | null;
     bridgeDimensions: { cols: number; rows: number };
   } {
     this.state.bridgeSettings = {
@@ -186,8 +182,9 @@ export class PreferencesStore {
       ...(update.autoScreenshotOnReply === undefined
         ? {}
         : { autoScreenshotOnReply: Boolean(update.autoScreenshotOnReply) }),
+      ...(update.replyFormat === undefined ? {} : { replyFormat: update.replyFormat }),
       ...(update.softTimeoutMs === undefined ? {} : { softTimeoutMs: update.softTimeoutMs }),
-      ...(update.hardTimeoutMs === undefined ? {} : { hardTimeoutMs: update.hardTimeoutMs }),
+      ...(update.hardTimeoutMs === undefined ? {} : { hardTimeoutMs: update.hardTimeoutMs === null ? null : update.hardTimeoutMs }),
       ...(update.bridgeDimensions
         ? {
             bridgeDimensions: {
@@ -234,6 +231,15 @@ export class PreferencesStore {
     this.state.terminalSlots = normalizedSlots;
     this.save();
   }
+
+  private removeLegacyDefaultWorkspaceCwd(): void {
+    if (!('defaultWorkspaceCwd' in this.state)) {
+      return;
+    }
+
+    delete (this.state as StoredPreferences & { defaultWorkspaceCwd?: string }).defaultWorkspaceCwd;
+    this.save();
+  }
 }
 
 function clampInteger(value: number | undefined, min: number, max: number, fallback: number): number {
@@ -242,6 +248,18 @@ function clampInteger(value: number | undefined, min: number, max: number, fallb
   }
 
   return Math.max(min, Math.min(max, Math.round(value as number)));
+}
+
+function clampNullableInteger(value: number | null | undefined, min: number, max: number, fallback: number | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  if (fallback === null) {
+    return !Number.isFinite(value) ? null : Math.max(min, Math.min(max, Math.round(value as number)));
+  }
+
+  return clampInteger(value, min, max, fallback);
 }
 
 function normalizeWorkspaceName(value: string | undefined, slotId: 1 | 2 | 3 | 4): string {

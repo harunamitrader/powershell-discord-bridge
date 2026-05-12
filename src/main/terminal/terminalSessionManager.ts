@@ -404,9 +404,8 @@ function normalizeResizeRequest(
 }
 
 function enforceLocalWritePolicy(summary: TerminalSessionSummary, source: TerminalWriteSource): void {
-  if (source === 'local' && summary.inputLocked) {
-    throw new Error(`Local input is locked for terminal session: ${summary.id}`);
-  }
+  void summary;
+  void source;
 }
 
 function toControlSequence(key: TerminalControlKey): string {
