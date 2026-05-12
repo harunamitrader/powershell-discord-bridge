@@ -1,5 +1,9 @@
 # PowerShell Discord Bridge
 
+<p align="center">
+  <img src="docs/images/readme-header.png" alt="PowerShell Discord Bridge header" />
+</p>
+
 PowerShell Discord Bridge は、**自分の Windows PC 上の PowerShell を Discord から操作するためのデスクトップアプリ**です。  
 Discord に送ったメッセージを PowerShell に渡し、返ってきた結果を Discord に返します。アプリ側では同じセッションの画面を見続けられるので、「今 PC 上で何が動いているか」を確認しながら使えます。
 
@@ -7,6 +11,16 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 >
 > このツールは **あなたの PC 上で PowerShell を実行します**。  
 > つまり、許可した Discord ユーザーから送られた内容は、あなたの PC に対する操作になります。公開サーバーに入れる汎用 bot ではなく、**自分用・小規模運用向けのローカルツール**として考えてください。
+
+## 画面イメージ
+
+### アプリ画面
+
+![PowerShell Discord Bridge app window](docs/images/app-window.png)
+
+### Discord 側の返答例
+
+<img src="docs/images/discord-response.jpg" alt="Discord response example" width="420" />
 
 ## できること
 
@@ -128,6 +142,22 @@ npm run build
 npm start
 ```
 
+### デスクトップ / スタートアップのショートカットを作る
+
+アプリ用アイコン付きのショートカットを、**デスクトップ**と **Windows のスタートアップ** にまとめて作る場合は、次を 1 回実行してください。
+
+```powershell
+.\install-shortcuts.cmd
+```
+
+同じことを npm script から行う場合は次でもかまいません。
+
+```powershell
+npm run setup:shortcuts
+```
+
+このショートカットは `assets\app-icon.ico` を使い、実体としては `launch-powershell-discord-bridge.cmd` を起動します。
+
 ## 6. 使い方
 
 1. アプリを起動する
@@ -163,6 +193,20 @@ npm start
 - `!replyformat`: 現在の Discord 返信形式を確認
 - `!replyformatcommand`: Discord 返信形式を code block に変更
 - `!replyformattext`: Discord 返信形式を plain text に変更
+
+通常メッセージに **Discord 添付ファイル** を付けた場合は、添付を `AppData\Roaming\...\discord-bridge\incoming-files\...` に保存したうえで、次のようなコメントブロックを本文先頭に付けて terminal へ送ります。
+
+```text
+# [DISCORD_ATTACHMENTS_BEGIN]
+# directory: "C:\...\msg-123"
+# manifest: "C:\...\msg-123\attachments.json"
+# count: 2
+# file[1]: "C:\...\msg-123\001-report.csv"
+# file[2]: "C:\...\msg-123\002-image.png"
+# [DISCORD_ATTACHMENTS_END]
+```
+
+このコメントブロックの後ろに元の本文がそのまま続きます。添付は **受信時点ですぐに保存** され、保存先は `slot-{n}\YYYY-MM-DD\msg-{messageId}` 単位で分かれます。添付は **1メッセージあたり最大 10 ファイル / 合計 10MB** までで、`!help` などの制御コマンドに添付した場合は拒否されます。本文なしで添付だけ送った場合も、保存済み manifest の場所を Discord に返しつつ、コメントブロックだけを terminal に渡します。
 
 設定は Electron アプリ右上の **Settings** から開きます。  
 設定は **Global** と **Per terminal** に分かれています。

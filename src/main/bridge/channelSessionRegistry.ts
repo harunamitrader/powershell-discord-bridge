@@ -1,5 +1,6 @@
 import type { TerminalControlKey, TerminalSlotId } from '../../shared/terminal';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
+import type { SavedDiscordAttachmentBatch } from './discordAttachmentService';
 
 export type BridgeRequestState =
   | 'received'
@@ -35,6 +36,7 @@ export interface BridgeRequestRecord {
   userId?: string;
   messageId?: string;
   content?: string;
+  attachmentBatch?: SavedDiscordAttachmentBatch;
   appendEnter?: boolean;
   controlKey?: TerminalControlKey;
   expectOutput: boolean;
@@ -46,6 +48,7 @@ export interface EnqueueRequestInput {
   userId?: string;
   messageId?: string;
   content?: string;
+  attachmentBatch?: SavedDiscordAttachmentBatch;
   appendEnter?: boolean;
   controlKey?: TerminalControlKey;
   expectOutput?: boolean;
@@ -352,6 +355,7 @@ function createRequest(input: EnqueueRequestInput): BridgeRequestRecord {
     userId: input.userId,
     messageId: input.messageId,
     content: input.content,
+    attachmentBatch: input.attachmentBatch,
     appendEnter: input.appendEnter,
     controlKey: input.controlKey,
     expectOutput: input.expectOutput ?? input.kind === 'text'

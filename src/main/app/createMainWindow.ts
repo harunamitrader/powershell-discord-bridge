@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, shell } from 'electron';
 import path from 'node:path';
+import { resolveAppIconPath } from './appIdentity';
 import { PreferencesStore } from './preferencesStore';
 
 const DEFAULT_WINDOW = {
@@ -19,6 +20,7 @@ export function createMainWindow(preferencesStore: PreferencesStore): BrowserWin
     minHeight: 720,
     autoHideMenuBar: true,
     backgroundColor: '#181818',
+    icon: resolveAppIconPath(),
     title: 'PowerShell Discord Bridge',
     webPreferences: {
       preload: path.resolve(__dirname, '../../preload/index.js'),

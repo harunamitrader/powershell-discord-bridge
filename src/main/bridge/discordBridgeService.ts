@@ -1,7 +1,7 @@
 import { app, type BrowserWindow } from 'electron';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { AttachmentBuilder, ChannelType, Client, GatewayIntentBits, type Guild, type Message, type TextChannel } from 'discord.js';
+import { AttachmentBuilder, ChannelType, Client, GatewayIntentBits, type Attachment, type Guild, type Message, type TextChannel } from 'discord.js';
 import type {
   TerminalAutomationTurnResult,
   TerminalControlKey,
@@ -24,6 +24,11 @@ import { buildWindowScreenshotFilename, captureWindowScreenshotPng } from './win
 import { buildTerminalScreenshotFilename, captureTerminalScreenshotPng } from './terminalScreenshotCapture';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import { TerminalSlotService } from '../app/terminalSlotService';
+import {
+  DiscordAttachmentService,
+  type DiscordAttachmentInput,
+  type SavedDiscordAttachmentBatch
+} from './discordAttachmentService';
 
 const REACTION_PROCESSING = '⏳';
 const REACTION_QUEUED = '🕒';
@@ -43,6 +48,7 @@ const AUTO_SCREENSHOT_STATUS_ON_REPLY = '[auto screenshot after reply: on]';
 const AUTO_SCREENSHOT_STATUS_OFF_REPLY = '[auto screenshot after reply: off]';
 const AUTO_SCREENSHOT_ATTACHMENT_REPLY = '[auto screenshot after completion: terminal]';
 const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
+const ATTACHMENTS_UNSUPPORTED_REPLY = '[attachments rejected: attachments are only supported on regular text messages]';
 const HELP_REPLY = [
   'Bridge commands:',
   '!help',
@@ -78,6 +84,10 @@ interface ProcessingLogEntry {
   completionReason?: string;
   diffLength?: number;
   timeoutFlag: boolean;
+  attachmentCount?: number;
+  attachmentDirectory?: string;
+  attachmentManifestPath?: string;
+  attachmentTotalBytes?: number;
   error?: string;
 }
 
@@ -116,6 +126,7 @@ export class DiscordBridgeService {
   private readonly requestContexts = new Map<string, RequestContext>();
   private readonly abortingChannels = new Set<string>();
   private readonly replyFormatter: DiscordReplyFormatter;
+  private readonly attachmentService: DiscordAttachmentService;
 
   constructor(
     private readonly channelSessionRegistry: ChannelSessionRegistry,
@@ -127,6 +138,7 @@ export class DiscordBridgeService {
     private readonly preferencesStore: PreferencesStore
   ) {
     this.replyFormatter = new DiscordReplyFormatter(config.reply);
+    this.attachmentService = new DiscordAttachmentService(config);
   }
 
   async start(): Promise<void> {
@@ -254,7 +266,39 @@ export class DiscordBridgeService {
 
     await this.ensureSlotBinding(slot.slotId);
 
-    const parsed = parseBridgeMessage(message.content, this.client?.user?.id);
+    const attachments = [...message.attachments.values()];
+    let parsed = parseBridgeMessage(message.content, this.client?.user?.id);
+    let attachmentBatch: SavedDiscordAttachmentBatch | undefined;
+    if (attachments.length > 0) {
+      if (parsed.kind !== 'text' && parsed.kind !== 'ignore') {
+        await this.tryAddReaction(message, REACTION_REJECTED);
+        await this.sendReplies(message, this.formatReplyText(ATTACHMENTS_UNSUPPORTED_REPLY));
+        return;
+      }
+
+      if (parsed.kind === 'ignore') {
+        parsed = {
+          kind: 'text',
+          content: '',
+          expectOutput: false
+        };
+      }
+
+      try {
+        attachmentBatch = await this.attachmentService.saveMessageAttachments({
+          slotId: slot.slotId,
+          channelId: message.channelId,
+          messageId: message.id,
+          createdAt: message.createdAt.toISOString(),
+          attachments: attachments.map((attachment) => mapDiscordAttachment(attachment))
+        });
+      } catch (error) {
+        await this.tryAddReaction(message, REACTION_REJECTED);
+        await this.sendReplies(message, this.formatReplyText(toErrorMessage(error)));
+        return;
+      }
+    }
+
     if (parsed.kind === 'ignore') {
       return;
     }
@@ -285,7 +329,7 @@ export class DiscordBridgeService {
     }
 
     const binding = this.channelSessionRegistry.getBinding(message.channelId);
-    if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed)) {
+    if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed) && !attachmentBatch) {
       await this.handleBusyPassthroughMessage(message, binding.sessionId, parsed);
       return;
     }
@@ -296,6 +340,7 @@ export class DiscordBridgeService {
       userId: message.author.id,
       messageId: message.id,
       content: parsed.kind === 'text' ? parsed.content : undefined,
+      attachmentBatch,
       appendEnter: parsed.kind === 'text' ? parsed.appendEnter : undefined,
       controlKey: parsed.kind === 'control' ? parsed.key : undefined,
       expectOutput: parsed.expectOutput
@@ -324,6 +369,7 @@ export class DiscordBridgeService {
         kind: result.request.kind,
         startedAt: result.request.createdAt,
         finishedAt: new Date().toISOString(),
+        ...toAttachmentLogEntry(result.request.attachmentBatch),
         timeoutFlag: false
       });
       return;
@@ -552,6 +598,7 @@ export class DiscordBridgeService {
         finishedAt: new Date().toISOString(),
         completionReason: result.completionReason,
         diffLength: result.diffLength,
+        ...toAttachmentLogEntry(request.attachmentBatch),
         timeoutFlag: result.completionReason.includes('timeout')
       });
       await this.finishSuccessfulRequest(channelId, binding.sessionId, request.requestId, { skipUnlock });
@@ -562,11 +609,27 @@ export class DiscordBridgeService {
 
   private async executeRequest(sessionId: string, request: BridgeRequestRecord): Promise<BridgeExecutionResult> {
     if (request.kind === 'text') {
+      const content = buildTerminalRequestContent(request);
+      if (request.attachmentBatch && (request.content?.trim().length ?? 0) === 0) {
+        await this.terminalAutomationService.sendInput({
+          sessionId,
+          content,
+          appendEnter: request.appendEnter,
+          source: 'bridge'
+        });
+        return {
+          completionReason: 'attachments_forwarded',
+          success: true,
+          replyChunks: this.formatReplyText(buildAttachmentSavedReply(request.attachmentBatch)),
+          diffLength: 0
+        };
+      }
+
       return this.mapAutomationResult(
         await this.terminalAutomationService.runAutomationTurn({
           sessionId,
           kind: 'text',
-          content: request.content ?? '',
+          content,
           appendEnter: request.appendEnter,
           expectOutput: request.expectOutput
         })
@@ -705,6 +768,7 @@ export class DiscordBridgeService {
       kind: request.kind,
       startedAt: request.createdAt,
       finishedAt: new Date().toISOString(),
+      ...toAttachmentLogEntry(request.attachmentBatch),
       timeoutFlag: toErrorMessage(error).includes('timeout'),
       error: toErrorMessage(error)
     });
@@ -724,6 +788,7 @@ export class DiscordBridgeService {
       kind: request.kind,
       startedAt: request.createdAt,
       finishedAt: new Date().toISOString(),
+      ...toAttachmentLogEntry(request.attachmentBatch),
       timeoutFlag: false
     });
     if (!context) {
@@ -1051,6 +1116,48 @@ function parseReplyFormatCommand(content: string): Extract<ParsedBridgeMessage, 
 
 function isBusyPassthroughMessage(parsed: ParsedBridgeMessage): parsed is BusyPassthroughMessage {
   return parsed.kind === 'text' || parsed.kind === 'control';
+}
+
+function mapDiscordAttachment(attachment: Attachment): DiscordAttachmentInput {
+  return {
+    id: attachment.id,
+    url: attachment.url,
+    name: attachment.name ?? undefined,
+    sizeBytes: attachment.size,
+    contentType: attachment.contentType ?? undefined
+  };
+}
+
+function buildTerminalRequestContent(request: BridgeRequestRecord): string {
+  if (!request.attachmentBatch) {
+    return request.content ?? '';
+  }
+
+  if (!request.content || request.content.length === 0) {
+    return request.attachmentBatch.contextBlock;
+  }
+
+  return `${request.attachmentBatch.contextBlock}\n\n${request.content}`;
+}
+
+function buildAttachmentSavedReply(batch: SavedDiscordAttachmentBatch): string {
+  return `[attachments saved: ${batch.count} files]\n[attachment manifest: ${batch.manifestPath}]`;
+}
+
+function toAttachmentLogEntry(batch: SavedDiscordAttachmentBatch | undefined): Pick<
+  ProcessingLogEntry,
+  'attachmentCount' | 'attachmentDirectory' | 'attachmentManifestPath' | 'attachmentTotalBytes'
+> {
+  if (!batch) {
+    return {};
+  }
+
+  return {
+    attachmentCount: batch.count,
+    attachmentDirectory: batch.directory,
+    attachmentManifestPath: batch.manifestPath,
+    attachmentTotalBytes: batch.totalBytes
+  };
 }
 
 function normalizeWorkspaceChannelName(value: string): string {

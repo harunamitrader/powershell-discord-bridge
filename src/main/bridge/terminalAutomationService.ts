@@ -14,6 +14,7 @@ import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import type { BridgeRuntimeConfig } from './bridgeConfig';
 import { DiscordReplyFormatter } from './discordReplyFormatter';
+import { extractComparableLineDiff, isComparableCharacter, normalizeTerminalText } from './replyTextDiff';
 import { TerminalDiffService } from './terminalDiffService';
 
 export class TerminalAutomationService {
@@ -215,8 +216,8 @@ export class TerminalAutomationService {
       await this.terminalSessionManager.redrawJiggle({
         sessionId,
         shrinkCols: 1,
-        waitAfterShrinkMs: 150,
-        waitAfterRestoreMs: 250
+        waitAfterShrinkMs: 500,
+        waitAfterRestoreMs: 1000
       });
     }
 
@@ -419,7 +420,9 @@ function extractSanitizedReplyText(options: {
   );
   const lines = original.split('\n').map((line) => line.replace(/[ \t]+$/g, ''));
   const normalizedSubmitted = normalizeComparisonText(options.submittedText);
+  const submittedLines = splitSubmittedLines(options.submittedText);
   const sanitizedLines = [...lines];
+  let submittedLineIndex = 0;
 
   while (sanitizedLines.length > 0 && !sanitizedLines[0]?.trim()) {
     sanitizedLines.shift();
@@ -433,7 +436,14 @@ function extractSanitizedReplyText(options: {
       continue;
     }
 
-    if (normalizedSubmitted && normalizeComparisonText(withoutPrompt || first) === normalizedSubmitted) {
+    const normalizedFirst = normalizeComparisonText(withoutPrompt || first);
+    if (submittedLineIndex < submittedLines.length && normalizedFirst === submittedLines[submittedLineIndex]) {
+      sanitizedLines.shift();
+      submittedLineIndex += 1;
+      continue;
+    }
+
+    if (normalizedSubmitted && normalizedFirst === normalizedSubmitted) {
       sanitizedLines.shift();
       continue;
     }
@@ -469,6 +479,13 @@ function extractSanitizedReplyText(options: {
   return withoutEchoLines;
 }
 
+function splitSubmittedLines(value?: string): string[] {
+  return normalizeTerminalText(value ?? '')
+    .split('\n')
+    .map((line) => normalizeComparisonText(stripPowerShellPrompt(line) || line))
+    .filter(Boolean);
+}
+
 function stripPowerShellPrompt(line: string): string {
   return line.replace(/^PS [^\r\n>]+>\s*/, '');
 }
@@ -481,101 +498,8 @@ function stripInlinePowerShellPrompts(text: string): string {
   return text.replace(/PS [^\r\n>]+>\s*/g, '');
 }
 
-function normalizeTerminalText(text: string): string {
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, '')
-    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
-    .replace(/\u001b[@-_]/g, '')
-    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
-    .replace(/[ \t]+$/gm, '');
-}
-
 function extractTailDiffFromText(beforeText?: string, afterText?: string): string | undefined {
-  const normalizedAfter = normalizeTerminalText(afterText ?? '');
-  if (!normalizedAfter) {
-    return undefined;
-  }
-
-  const afterLines = normalizedAfter.split('\n');
-  const afterComparable = tailComparableStream(buildComparableStream(afterLines), REPLY_COMPARISON_TAIL_CHARS);
-  if (afterComparable.text.length === 0) {
-    return '';
-  }
-
-  const normalizedBefore = normalizeTerminalText(beforeText ?? '');
-  if (!normalizedBefore) {
-    const startLineIndex = afterComparable.lineIndexByCharacter[0];
-    return startLineIndex === undefined ? normalizedAfter : afterLines.slice(startLineIndex).join('\n');
-  }
-
-  const beforeComparable = tailComparableStream(buildComparableStream(normalizedBefore.split('\n')), REPLY_COMPARISON_TAIL_CHARS);
-  const overlapLength = findSuffixPrefixOverlap(beforeComparable.text, afterComparable.text);
-  if (overlapLength >= afterComparable.text.length) {
-    return '';
-  }
-
-  const startLineIndex = afterComparable.lineIndexByCharacter[overlapLength];
-  if (startLineIndex === undefined) {
-    return '';
-  }
-
-  return afterLines.slice(startLineIndex).join('\n');
-}
-
-interface ComparableStream {
-  text: string;
-  lineIndexByCharacter: number[];
-}
-
-function buildComparableStream(lines: string[]): ComparableStream {
-  const characters: string[] = [];
-  const lineIndexByCharacter: number[] = [];
-
-  lines.forEach((line, lineIndex) => {
-    const normalizedLine = line.normalize('NFKC');
-    for (const character of normalizedLine) {
-      if (!isComparableCharacter(character)) {
-        continue;
-      }
-
-      characters.push(character);
-      lineIndexByCharacter.push(lineIndex);
-    }
-  });
-
-  return {
-    text: characters.join(''),
-    lineIndexByCharacter
-  };
-}
-
-function tailComparableStream(stream: ComparableStream, maxChars: number): ComparableStream {
-  if (stream.text.length <= maxChars) {
-    return stream;
-  }
-
-  const startIndex = Math.max(0, stream.text.length - maxChars);
-  return {
-    text: stream.text.slice(startIndex),
-    lineIndexByCharacter: stream.lineIndexByCharacter.slice(startIndex)
-  };
-}
-
-function findSuffixPrefixOverlap(beforeText: string, afterText: string): number {
-  const maxOverlap = Math.min(beforeText.length, afterText.length);
-  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
-    if (beforeText.slice(beforeText.length - overlap) === afterText.slice(0, overlap)) {
-      return overlap;
-    }
-  }
-
-  return 0;
-}
-
-function isComparableCharacter(character: string): boolean {
-  return COMPARABLE_CHARACTER_PATTERN.test(character);
+  return extractComparableLineDiff(beforeText, afterText, REPLY_COMPARISON_TAIL_CHARS);
 }
 
 function compressDecorativeRuns(text: string): string {
@@ -608,6 +532,4 @@ function wait(durationMs: number): Promise<void> {
     setTimeout(resolve, durationMs);
   });
 }
-
-const COMPARABLE_CHARACTER_PATTERN = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}\p{Script=Latin}\p{Number}]/u;
 const REPLY_COMPARISON_TAIL_CHARS = 20000;

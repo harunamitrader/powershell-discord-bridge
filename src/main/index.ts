@@ -1,5 +1,6 @@
 import { config as loadEnvFile } from 'dotenv';
 import { app, BrowserWindow } from 'electron';
+import { APP_USER_MODEL_ID } from './app/appIdentity';
 import { createMainWindow } from './app/createMainWindow';
 import { loadBridgeRuntimeConfig } from './bridge/bridgeConfig';
 import { ChannelSessionRegistry } from './bridge/channelSessionRegistry';
@@ -11,6 +12,7 @@ import { registerIpc } from './ipc/registerIpc';
 import { TerminalSessionManager } from './terminal/terminalSessionManager';
 
 loadEnvFile();
+app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow: BrowserWindow | undefined;
 let terminalSessionManager: TerminalSessionManager | undefined;

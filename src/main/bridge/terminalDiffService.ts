@@ -1,4 +1,5 @@
 import type { TerminalDiffResult, TerminalSessionSnapshot } from '../../shared/terminal';
+import { extractComparableLineDiff, normalizeTerminalText, toComparableText } from './replyTextDiff';
 
 interface BuildDiffOptions {
   beforeSnapshot?: TerminalSessionSnapshot;
@@ -8,12 +9,14 @@ interface BuildDiffOptions {
   fallbackLines: number;
 }
 
-const ANSI_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
-
 export class TerminalDiffService {
   buildDiff(options: BuildDiffOptions): TerminalDiffResult {
-    const normalizedRawOutput = normalizeText(options.rawOutput);
-    const screenDiff = buildScreenDiff(options.beforeSnapshot?.screenText ?? '', options.afterSnapshot.screenText, options.tailChars);
+    const normalizedRawOutput = normalizeTerminalText(options.rawOutput);
+    const screenDiff = extractComparableLineDiff(
+      options.beforeSnapshot?.screenText ?? '',
+      options.afterSnapshot.screenText,
+      options.tailChars
+    ) ?? '';
 
     if (shouldPreferScreenDiff(normalizedRawOutput, screenDiff, options.afterSnapshot.screenText)) {
       return {
@@ -48,7 +51,7 @@ export class TerminalDiffService {
       };
     }
 
-    const afterTail = tailLines(normalizeText(options.afterSnapshot.screenText), options.fallbackLines);
+    const afterTail = tailLines(normalizeTerminalText(options.afterSnapshot.screenText), options.fallbackLines);
     return {
       beforeSnapshotId: options.beforeSnapshot?.snapshotId,
       afterSnapshotId: options.afterSnapshot.snapshotId,
@@ -58,44 +61,6 @@ export class TerminalDiffService {
       source: 'after-tail'
     };
   }
-}
-
-function buildScreenDiff(beforeText: string, afterText: string, tailChars: number): string {
-  const beforeTail = normalizeText(sliceTail(beforeText, tailChars));
-  const afterTail = normalizeText(sliceTail(afterText, tailChars));
-  if (afterTail.length === 0) {
-    return '';
-  }
-
-  let prefixLength = 0;
-  while (
-    prefixLength < beforeTail.length &&
-    prefixLength < afterTail.length &&
-    beforeTail[prefixLength] === afterTail[prefixLength]
-  ) {
-    prefixLength += 1;
-  }
-
-  let beforeSuffixIndex = beforeTail.length - 1;
-  let afterSuffixIndex = afterTail.length - 1;
-  while (beforeSuffixIndex >= prefixLength && afterSuffixIndex >= prefixLength && beforeTail[beforeSuffixIndex] === afterTail[afterSuffixIndex]) {
-    beforeSuffixIndex -= 1;
-    afterSuffixIndex -= 1;
-  }
-
-  return afterTail.slice(prefixLength, afterSuffixIndex + 1);
-}
-
-function normalizeText(text: string): string {
-  return text.replace(/\r\n/g, '\n').replace(ANSI_PATTERN, '').replace(/[ \t]+$/gm, '');
-}
-
-function sliceTail(text: string, tailChars: number): string {
-  if (text.length <= tailChars) {
-    return text;
-  }
-
-  return text.slice(text.length - tailChars);
 }
 
 function tailLines(text: string, count: number): string {
@@ -118,7 +83,7 @@ function shouldPreferScreenDiff(rawOutput: string, screenDiff: string, afterScre
 
   const comparableRaw = collapseComparisonText(rawOutput);
   const comparableDiff = collapseComparisonText(screenDiff);
-  const comparableAfterScreen = collapseComparisonText(normalizeText(afterScreenText));
+  const comparableAfterScreen = collapseComparisonText(normalizeTerminalText(afterScreenText));
   if (!comparableRaw || !comparableDiff || !comparableAfterScreen) {
     return false;
   }
@@ -143,7 +108,7 @@ function shouldPreferScreenDiff(rawOutput: string, screenDiff: string, afterScre
 }
 
 function collapseComparisonText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return toComparableText(text);
 }
 
 function countMeaningfulLines(text: string): number {

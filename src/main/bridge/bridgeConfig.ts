@@ -24,9 +24,15 @@ export interface BridgeRuntimeConfig {
     targetChunkLength: number;
     truncatedNote: string;
   };
+  attachments: {
+    maxFilesPerMessage: number;
+    maxTotalBytes: number;
+    downloadTimeoutMs: number;
+  };
   storage: {
     snapshotDirectory: string;
     processingLogDirectory: string;
+    incomingAttachmentDirectory: string;
   };
 }
 
@@ -53,9 +59,15 @@ export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
       targetChunkLength: readNumber('BRIDGE_REPLY_TARGET_LENGTH', 1888),
       truncatedNote: '[truncated: diff exceeded Discord reply limit]'
     },
+    attachments: {
+      maxFilesPerMessage: 10,
+      maxTotalBytes: 10 * 1024 * 1024,
+      downloadTimeoutMs: 30000
+    },
     storage: {
       snapshotDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'snapshots'),
-      processingLogDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'processing-logs')
+      processingLogDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'processing-logs'),
+      incomingAttachmentDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'incoming-files')
     }
   };
 }
