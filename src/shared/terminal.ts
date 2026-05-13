@@ -180,6 +180,7 @@ export interface TerminalSendInputRequest {
 export interface TerminalWaitForCompletionRequest {
   sessionId: string;
   expectOutput?: boolean;
+  promoteToOutputOnMeaningfulChange?: boolean;
   beforeScreenText?: string;
   submittedText?: string;
   submittedTextProbe?: string;
@@ -281,6 +282,7 @@ export interface TerminalApi {
   bootstrap(): Promise<BootstrapState>;
   restartTerminalSlot(slotId: TerminalSlotId): Promise<TerminalSessionSummary>;
   updateTerminalSlot(update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult>;
+  writeClipboard(text: string): Promise<void>;
   write(sessionId: string, data: string): Promise<void>;
   resize(sessionId: string, cols: number, rows: number): Promise<void>;
   renameSession(request: TerminalSessionRenameRequest): Promise<TerminalSessionSummary>;

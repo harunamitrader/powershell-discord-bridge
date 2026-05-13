@@ -122,6 +122,7 @@ ALLOW_GUILD_ID=345678901234567890
 
 - `.env` はアプリ起動時に自動で読み込まれます
 - `ALLOW_GUILD_ID` を空にすると、**bot が参加している guild 内を広く対象**にします
+- `ALLOW_USER_IDS` を空のまま起動すると、**安全のため誰のメッセージも受け付けません**
 - 以前の名前 (`DISCORD_ALLOWED_USER_ID`, `DISCORD_ALLOWED_GUILD_IDS`) も互換のため読み取れますが、**これから設定する場合は `ALLOW_USER_IDS` / `ALLOW_GUILD_ID` を使ってください**
 
 ## 5. 初回起動
@@ -132,7 +133,7 @@ ALLOW_GUILD_ID=345678901234567890
 .\launch-powershell-discord-bridge.cmd
 ```
 
-この起動スクリプトは、必要なら自動で次を行います。
+この起動スクリプトは、必要なら自動で次を行います。`dist\renderer` だけでなく `dist-electron` も見て、**成果物が足りない場合やソース更新後に build が古い場合は build をやり直します。**
 
 - `npm install`
 - `npm run build`
@@ -180,11 +181,12 @@ npm run setup:shortcuts
 
 - 通常のメッセージ: PowerShell へそのまま送信
 - `!/command`: `/command` をそのまま Enter 付きで送る
-- `!noenterTEXT`: `TEXT` を Enter なしで送る
+- `!noenterTEXT`: `TEXT` を Enter なしで送る（出力待ちはしない）
 - `!enter`: Enter だけ送る
 - `!ctrlc`: Ctrl+C を送る
 - `!esc`: Escape を送る
-- `!stop`: 進行中のリクエスト停止を試みる
+- `!stop`: Ctrl+C を送って進行中のリクエスト停止を試みる（止まらない場合は Restart を使う）
+- `!forcestop`: 現在の terminal を強制停止して自動で再起動する
 - `!restartterminal` / `!rst`: 対応する terminal slot を再起動
 - `!restartapp` / `!rsa`: アプリ自体を再起動
 - `!screenshot` / `!ss`: 対象 terminal のスクリーンショットを返す

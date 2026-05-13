@@ -77,6 +77,11 @@ export class DiscordAttachmentService {
       for (const [index, attachment] of options.attachments.entries()) {
         const buffer = await downloadAttachment(attachment.url, this.config.attachments.downloadTimeoutMs);
         totalBytes += buffer.byteLength;
+        if (totalBytes > this.config.attachments.maxTotalBytes) {
+          throw new Error(
+            `[attachments rejected: max ${this.config.attachments.maxFilesPerMessage} files, ${formatBytes(this.config.attachments.maxTotalBytes)} total]`
+          );
+        }
 
         const originalName = normalizeOriginalName(attachment.name, index);
         const savedName = buildSavedFilename(index, originalName);

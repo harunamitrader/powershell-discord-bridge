@@ -52,6 +52,7 @@ export class TerminalAutomationService {
   async waitForCompletion(request: TerminalWaitForCompletionRequest): Promise<TerminalWaitForCompletionResult> {
     const startedAt = Date.now();
     const expectOutput = request.expectOutput ?? true;
+    const promoteToOutputOnMeaningfulChange = request.promoteToOutputOnMeaningfulChange ?? false;
     const bridgeSettings = this.preferencesStore.getBridgeSettings();
     const stablePollTarget = request.stablePollCount ?? this.config.completion.stablePollCount;
     const settleMs = request.settleMs ?? this.config.completion.settleMs;
@@ -64,6 +65,7 @@ export class TerminalAutomationService {
 
     let stablePollCount = 0;
     let previousHash: string | undefined;
+    let promotedToOutputWait = false;
 
     while (true) {
       const state = await this.terminalSessionManager.getSessionState(request.sessionId);
@@ -93,6 +95,7 @@ export class TerminalAutomationService {
         afterText: snapshot.screenText,
         submittedText: request.submittedText
       });
+      const hasMeaningfulChangeSignal = observedOutput || hasMeaningfulVisibleChange;
       if (state.status === 'exited') {
         if (abortRequested) {
           return buildCompletionResult(request.sessionId, 'aborted', true, snapshot, state);
@@ -111,7 +114,11 @@ export class TerminalAutomationService {
         }
       }
 
-      if (!expectOutput) {
+      if (!expectOutput && promoteToOutputOnMeaningfulChange && hasMeaningfulChangeSignal) {
+        promotedToOutputWait = true;
+      }
+
+      if (!expectOutput && !promotedToOutputWait) {
         if (hasPromptReady && isStable) {
           return buildCompletionResult(request.sessionId, 'prompt_ready', true, snapshot, state);
         }
@@ -119,7 +126,7 @@ export class TerminalAutomationService {
         if (elapsed >= noOutputTimeoutMs && (hasPromptReady || isStable)) {
           return buildCompletionResult(request.sessionId, 'no_output_timeout', true, snapshot, state);
         }
-      } else {
+      } else if (expectOutput) {
         if (hasPromptReady && isStable && idleMs >= settleMs && observedOutput && !pendingInputDetected && !submittedTextPending) {
           return buildCompletionResult(request.sessionId, 'prompt_ready', true, snapshot, state);
         }
@@ -133,6 +140,18 @@ export class TerminalAutomationService {
         }
 
         if (elapsed >= softTimeoutMs && isStable && idleMs >= settleMs && (!observedOutput || pendingInputDetected || submittedTextPending)) {
+          return buildCompletionResult(request.sessionId, 'no_output_timeout', false, snapshot, state);
+        }
+      } else {
+        if (elapsed >= noOutputTimeoutMs && isStable && idleMs >= settleMs && hasMeaningfulChangeSignal) {
+          return buildCompletionResult(request.sessionId, 'idle_stable', true, snapshot, state);
+        }
+
+        if (elapsed >= softTimeoutMs && isStable && idleMs >= settleMs && hasMeaningfulChangeSignal) {
+          return buildCompletionResult(request.sessionId, 'soft_timeout_stable', true, snapshot, state);
+        }
+
+        if (elapsed >= softTimeoutMs && isStable && idleMs >= settleMs && !hasMeaningfulChangeSignal) {
           return buildCompletionResult(request.sessionId, 'no_output_timeout', false, snapshot, state);
         }
       }
@@ -167,6 +186,8 @@ export class TerminalAutomationService {
     const completion = await this.waitForCompletion({
       sessionId: request.sessionId,
       expectOutput: request.expectOutput ?? request.kind === 'text',
+      promoteToOutputOnMeaningfulChange:
+        request.kind === 'control' && (request.key ?? 'enter') === 'enter' && !(request.expectOutput ?? false),
       beforeScreenText: beforeSnapshot?.screenText,
       submittedText: request.kind === 'text' ? request.content : undefined,
       submittedTextProbe: request.kind === 'text' ? buildSubmittedTextProbe(request.content) : undefined,

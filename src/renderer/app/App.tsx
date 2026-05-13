@@ -82,10 +82,8 @@ export function App() {
       scheduleViewSnapshotPublish();
     });
 
-    const unsubscribeData = window.terminalApp.onSessionData((event) => {
-      if (event.sessionId === activeSessionIdRef.current) {
-        scheduleViewSnapshotPublish();
-      }
+    const unsubscribeData = window.terminalApp.onSessionData((_event) => {
+      scheduleViewSnapshotPublish();
     });
 
     void (async () => {

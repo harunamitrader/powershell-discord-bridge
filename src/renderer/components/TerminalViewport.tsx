@@ -34,6 +34,17 @@ export function TerminalViewport({ session, focused, onActivate }: TerminalViewp
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
     terminal.open(containerRef.current);
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type === 'keydown' && isCopyShortcut(event) && terminal.hasSelection()) {
+        event.preventDefault();
+        void window.terminalApp.writeClipboard(terminal.getSelection()).catch((error: unknown) => {
+          console.error('Clipboard write failed', error);
+        });
+        return false;
+      }
+
+      return true;
+    });
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
@@ -125,4 +136,12 @@ function fitAndSync(sessionId: string, fitAddon: FitAddon, terminal: Terminal) {
   }
 
   void window.terminalApp.resize(sessionId, dimensions.cols, dimensions.rows);
+}
+
+function isCopyShortcut(event: KeyboardEvent): boolean {
+  if (event.altKey) {
+    return false;
+  }
+
+  return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
 }

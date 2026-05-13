@@ -24,13 +24,14 @@ export class DiscordReplyFormatter {
       return chunks;
     }
 
-    const allowed = chunks.slice(0, this.options.maxMessages);
-    const noteSuffix = `\n${this.options.truncatedNote}`;
-    const maxLastPayload = replyFormat === 'command'
-      ? this.options.maxMessageLength - CODE_BLOCK_PREFIX.length - CODE_BLOCK_SUFFIX.length - noteSuffix.length
-      : this.options.maxMessageLength - noteSuffix.length;
-    const lastContent = unwrapChunk(allowed[this.options.maxMessages - 1], replyFormat).slice(0, Math.max(1, maxLastPayload));
-    allowed[this.options.maxMessages - 1] = formatChunk(`${lastContent}${noteSuffix}`, replyFormat);
+    const allowed = chunks.slice(-this.options.maxMessages);
+    const notePrefix = `${this.options.truncatedNote}\n`;
+    const maxFirstPayload = replyFormat === 'command'
+      ? this.options.maxMessageLength - CODE_BLOCK_PREFIX.length - CODE_BLOCK_SUFFIX.length - notePrefix.length
+      : this.options.maxMessageLength - notePrefix.length;
+    const firstContent = unwrapChunk(allowed[0], replyFormat);
+    const trimmedFirstContent = firstContent.slice(Math.max(0, firstContent.length - Math.max(1, maxFirstPayload)));
+    allowed[0] = formatChunk(`${notePrefix}${trimmedFirstContent}`, replyFormat);
     return allowed;
   }
 }

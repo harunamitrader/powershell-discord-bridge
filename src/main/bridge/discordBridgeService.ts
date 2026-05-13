@@ -38,6 +38,7 @@ const REACTION_REJECTED = '🚫';
 
 const STOPPED_REPLY = '[stopped]';
 const STOP_REQUESTED_REPLY = '[stop requested]';
+const FORCE_STOPPED_REPLY = '[terminal force-stopped and restarted]';
 const TERMINAL_RESTARTED_REPLY = '[terminal restarted]';
 const APP_RESTARTING_REPLY = '[app restarting]';
 const NO_ACTIVE_REQUEST_REPLY = '[no active request]';
@@ -54,7 +55,8 @@ const HELP_REPLY = [
   '!help',
   '!restartterminal / !rst',
   '!restartapp / !rsa',
-  '!stop',
+  '!stop -> send Ctrl+C and request stop',
+  '!forcestop -> kill terminal and auto restart',
   '!enter',
   '!esc',
   '!ctrlc / !ctrl-c',
@@ -69,7 +71,7 @@ const HELP_REPLY = [
   '!replyformatcommand',
   '!replyformattext',
   '!/command -> send /command with Enter',
-  '!noenterTEXT -> send TEXT without Enter'
+  '!noenterTEXT -> send TEXT without Enter or output wait'
 ].join('\n');
 
 interface ProcessingLogEntry {
@@ -101,6 +103,7 @@ type ParsedBridgeMessage =
   | { kind: 'restart-terminal' }
   | { kind: 'restart-app' }
   | { kind: 'stop' }
+  | { kind: 'force-stop' }
   | { kind: 'settings'; setting: 'auto-screenshot'; value?: boolean }
   | { kind: 'settings'; setting: 'hard-timeout'; value?: number | null }
   | { kind: 'settings'; setting: 'reply-format'; value?: 'command' | 'plain-text' }
@@ -308,6 +311,11 @@ export class DiscordBridgeService {
       return;
     }
 
+    if (parsed.kind === 'force-stop') {
+      await this.handleForceStopCommand(message, slot.slotId);
+      return;
+    }
+
     if (parsed.kind === 'help') {
       await this.handleHelpCommand(message);
       return;
@@ -418,6 +426,27 @@ export class DiscordBridgeService {
 
     await this.tryAddReaction(message, REACTION_SUCCESS);
     await this.sendReplies(message, this.formatReplyText(STOP_REQUESTED_REPLY));
+  }
+
+  private async handleForceStopCommand(message: Message, slotId: TerminalSlotId): Promise<void> {
+    await this.tryAddReaction(message, REACTION_PROCESSING);
+
+    const binding = this.channelSessionRegistry.getBinding(message.channelId);
+    if (binding?.status === 'busy') {
+      const aborted = this.channelSessionRegistry.abortChannel(message.channelId);
+      this.abortingChannels.add(message.channelId);
+      this.terminalAutomationService.requestAbort(aborted.binding.sessionId);
+
+      if (aborted.cancelled) {
+        await this.cancelQueuedRequest(aborted.cancelled);
+      }
+    }
+
+    this.terminalSlotService.restartSlot(slotId);
+    await this.ensureSlotBinding(slotId);
+
+    await this.tryAddReaction(message, REACTION_SUCCESS);
+    await this.sendReplies(message, this.formatReplyText(FORCE_STOPPED_REPLY));
   }
 
   private async handleHelpCommand(message: Message): Promise<void> {
@@ -848,7 +877,7 @@ export class DiscordBridgeService {
   }
 
   private isAllowedUser(userId: string): boolean {
-    return this.config.allowUserIds.length === 0 || this.config.allowUserIds.includes(userId);
+    return this.config.allowUserIds.length > 0 && this.config.allowUserIds.includes(userId);
   }
 
   private isAllowedGuild(guildId: string | null): boolean {
@@ -1015,6 +1044,9 @@ export function parseBridgeMessage(content: string, botUserId?: string): ParsedB
     case '!stop':
     case '[[terminal:stop]]':
       return { kind: 'stop' };
+    case '!forcestop':
+    case '[[terminal:force-stop]]':
+      return { kind: 'force-stop' };
   }
 
   const noEnterCommand = parseNoEnterCommand(normalizedForCommand);
@@ -1050,7 +1082,7 @@ function parseNoEnterCommand(content: string): Extract<ParsedBridgeMessage, { ki
     kind: 'text',
     content: leftTrimmed.slice(prefix.length),
     appendEnter: false,
-    expectOutput: true
+    expectOutput: false
   };
 }
 

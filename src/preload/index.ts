@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { clipboard, contextBridge, ipcRenderer } from 'electron';
 import type {
   BridgeSettings,
   BridgeSettingsUpdate,
@@ -47,6 +47,9 @@ const api: TerminalApi = {
   },
   async updateTerminalSlot(update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult> {
     return ipcRenderer.invoke('terminal:update-slot', update);
+  },
+  async writeClipboard(text: string): Promise<void> {
+    clipboard.writeText(text);
   },
   async write(sessionId: string, data: string): Promise<void> {
     const request: TerminalWriteRequest = {

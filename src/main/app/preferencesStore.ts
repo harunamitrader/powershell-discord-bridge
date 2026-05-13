@@ -134,7 +134,7 @@ export class PreferencesStore {
   } {
     return {
       autoScreenshotOnReply: this.state.bridgeSettings?.autoScreenshotOnReply ?? DEFAULT_BRIDGE_SETTINGS.autoScreenshotOnReply,
-      replyFormat: this.state.bridgeSettings?.replyFormat === 'plain-text' ? 'plain-text' : DEFAULT_BRIDGE_SETTINGS.replyFormat,
+      replyFormat: normalizeBridgeReplyFormat(this.state.bridgeSettings?.replyFormat),
       softTimeoutMs: clampInteger(
         this.state.bridgeSettings?.softTimeoutMs,
         MIN_SOFT_TIMEOUT_MS,
@@ -260,6 +260,10 @@ function clampNullableInteger(value: number | null | undefined, min: number, max
   }
 
   return clampInteger(value, min, max, fallback);
+}
+
+function normalizeBridgeReplyFormat(value: BridgeReplyFormat | undefined): BridgeReplyFormat {
+  return value === 'command' || value === 'plain-text' ? value : DEFAULT_BRIDGE_SETTINGS.replyFormat;
 }
 
 function normalizeWorkspaceName(value: string | undefined, slotId: 1 | 2 | 3 | 4): string {

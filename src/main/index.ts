@@ -24,6 +24,9 @@ async function bootstrap(): Promise<void> {
   terminalSessionManager = new TerminalSessionManager(preferencesStore);
   const terminalSlotService = new TerminalSlotService(preferencesStore, terminalSessionManager);
   const bridgeRuntimeConfig = loadBridgeRuntimeConfig();
+  if (bridgeRuntimeConfig.allowUserIds.length === 0) {
+    console.warn('ALLOW_USER_IDS is empty. Discord commands are blocked until at least one allowed user ID is configured.');
+  }
   const channelSessionRegistry = new ChannelSessionRegistry(terminalSessionManager);
   const terminalAutomationService = new TerminalAutomationService(terminalSessionManager, bridgeRuntimeConfig, preferencesStore);
   const window = createMainWindow(preferencesStore);
