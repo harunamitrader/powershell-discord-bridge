@@ -31,6 +31,7 @@ import { DiscordBridgeService } from '../bridge/discordBridgeService';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import { TerminalSlotService } from '../app/terminalSlotService';
+import { AppLogStore } from '../app/appLogStore';
 
 interface RegisterIpcOptions {
   discordBridgeService: DiscordBridgeService;
@@ -39,10 +40,11 @@ interface RegisterIpcOptions {
   preferencesStore: PreferencesStore;
   terminalSessionManager: TerminalSessionManager;
   terminalSlotService: TerminalSlotService;
+  appLogStore: AppLogStore;
 }
 
 export function registerIpc(options: RegisterIpcOptions): void {
-  const { window, preferencesStore, terminalAutomationService, terminalSessionManager, discordBridgeService, terminalSlotService } = options;
+  const { window, preferencesStore, terminalAutomationService, terminalSessionManager, discordBridgeService, terminalSlotService, appLogStore } = options;
 
   const sendToRenderer = (channel: string, payload: unknown): void => {
     if (window.isDestroyed()) {
@@ -66,15 +68,20 @@ export function registerIpc(options: RegisterIpcOptions): void {
   const handleSessionExit = (event: TerminalSessionExitEvent) => {
     sendToRenderer('terminal:session-exit', event);
   };
+  const handleAppLogEntry = (entry: { id: number; timestamp: string; stream: 'stdout' | 'stderr'; text: string }) => {
+    sendToRenderer('terminal:app-log-entry', entry);
+  };
 
   terminalSessionManager.on('session-updated', handleSessionUpdated);
   terminalSessionManager.on('session-data', handleSessionData);
   terminalSessionManager.on('session-exit', handleSessionExit);
+  const unsubscribeAppLogEntry = appLogStore.onEntry(handleAppLogEntry);
 
   window.once('closed', () => {
     terminalSessionManager.off('session-updated', handleSessionUpdated);
     terminalSessionManager.off('session-data', handleSessionData);
     terminalSessionManager.off('session-exit', handleSessionExit);
+    unsubscribeAppLogEntry();
   });
 
   ipcMain.handle('terminal:bootstrap', async (): Promise<BootstrapState> => ({
@@ -83,7 +90,8 @@ export function registerIpc(options: RegisterIpcOptions): void {
     bridgeDimensions: terminalSessionManager.getBridgeDimensions(),
     bridgeSettings: preferencesStore.getBridgeSettings(),
     terminalSlots: terminalSlotService.listSlots(),
-    sessions: terminalSessionManager.listSessions()
+    sessions: terminalSessionManager.listSessions(),
+    appLogs: appLogStore.listEntries()
   }));
 
   ipcMain.handle('terminal:restart-slot', async (_event, slotId: TerminalSlotId) => {

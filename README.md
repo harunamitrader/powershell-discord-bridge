@@ -161,7 +161,7 @@ npm start
 npm run setup:shortcuts
 ```
 
-このショートカットは `assets\app-icon.ico` を使い、実体としては `launch-powershell-discord-bridge.cmd` を起動します。**スタートアップには登録しません。** 以前の設定で同名のスタートアップショートカットが残っている場合は、このセットアップ実行時に削除します。
+このショートカットは `assets\app-icon.ico` を使い、**通常はコンソールを見せない hidden launcher** 経由でアプリを起動します。`launch-powershell-discord-bridge.cmd` はそのまま残るので、デバッグしたいときだけ手動実行できます。**スタートアップには登録しません。** 以前の設定で同名のスタートアップショートカットが残っている場合は、このセットアップ実行時に削除します。
 
 ## 6. 使い方
 
@@ -172,6 +172,7 @@ npm run setup:shortcuts
 5. そのチャンネルに普通のメッセージを送る
 6. 対応する PowerShell 枠で Discord の内容が処理される
 7. 結果が Discord に返る
+8. 右上の **Logs** を開くと、外部コンソールに出ている起動ログや bridge ログ、terminal 入力ログをアプリ内オーバーレイでも確認できる
 
 各枠は固定で、増減はできません。  
 ワークスペース名を変更した場合は、対応する Discord チャンネル名も同じ名前に追従して変更されます。  
@@ -217,7 +218,7 @@ npm run setup:shortcuts
 設定は Electron アプリ右上の **Settings** から開きます。  
 設定は **Global** と **Per terminal** に分かれています。
 
-- **Global:** 自動スクリーンショット送信 ON/OFF、Discord reply format、soft timeout / hard timeout、bridge 用の固定 cols / rows
+- **Global:** 自動スクリーンショット送信 ON/OFF、Discord reply format、soft timeout / hard timeout、bridge 用の固定 cols / rows（rows の最小値は `15`）
 - **Per terminal:** ワークスペース名、Discord channel ID、その枠の default working directory
 
 初期値は次のとおりです。

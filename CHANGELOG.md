@@ -14,6 +14,8 @@
 - hard timeout の unlimited 設定
 - fallback 返信使用時の `[reply fallback used]` マーカー
 - terminal slot 再起動とアプリ再起動の Discord コマンド
+- アプリ内で main process ログと terminal 入力ログを確認できる Logs オーバーレイ
+- デスクトップショートカット向けの hidden launcher
 
 ### Changed
 
@@ -25,6 +27,8 @@
 - グローバルの default working directory 設定を廃止
 - 各 terminal の working directory 表記を `Default working directory` に変更
 - 初期設定を `plain text`、`soft timeout 60s`、`hard timeout unlimited`、`100x100` に変更
+- デスクトップショートカットは通常起動時に親コンソールを表示しない hidden launcher を使うよう変更
+- bridge rows の最小値を `15` に変更
 
 ### Fixed
 

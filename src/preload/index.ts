@@ -1,5 +1,6 @@
 import { clipboard, contextBridge, ipcRenderer } from 'electron';
 import type {
+  AppLogEntry,
   BridgeSettings,
   BridgeSettingsUpdate,
   BootstrapState,
@@ -105,6 +106,9 @@ const api: TerminalApi = {
   },
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void {
     return subscribe('terminal:session-exit', listener);
+  },
+  onAppLogEntry(listener: (entry: AppLogEntry) => void): () => void {
+    return subscribe('terminal:app-log-entry', listener);
   },
   async updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings> {
     return ipcRenderer.invoke('terminal:update-bridge-settings', update);

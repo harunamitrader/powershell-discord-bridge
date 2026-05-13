@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from 'react';
 import type {
+  AppLogEntry,
   BridgeReplyFormat,
   BootstrapState,
   BridgeSettings,
@@ -21,7 +22,7 @@ interface SettingsDraft {
 
 const MIN_BRIDGE_COLS = 40;
 const MAX_BRIDGE_COLS = 400;
-const MIN_BRIDGE_ROWS = 10;
+const MIN_BRIDGE_ROWS = 15;
 const MAX_BRIDGE_ROWS = 120;
 const MIN_SOFT_TIMEOUT_MS = 1000;
 const MAX_SOFT_TIMEOUT_MS = 300000;
@@ -33,11 +34,14 @@ const MAX_SOFT_TIMEOUT_SECONDS = MAX_SOFT_TIMEOUT_MS / 1000;
 const MIN_HARD_TIMEOUT_SECONDS = MIN_HARD_TIMEOUT_MS / 1000;
 const MAX_HARD_TIMEOUT_SECONDS = MAX_HARD_TIMEOUT_MS / 1000;
 const DEFAULT_HARD_TIMEOUT_SECONDS = DEFAULT_HARD_TIMEOUT_MS / 1000;
+const MAX_RENDERED_APP_LOGS = 2000;
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<BootstrapState | null>(null);
   const [sessions, setSessions] = useState<TerminalSessionSummary[]>([]);
   const [slotSettings, setSlotSettings] = useState<TerminalSlotSettings[]>([]);
+  const [appLogs, setAppLogs] = useState<AppLogEntry[]>([]);
+  const [logsOpen, setLogsOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [bridgeSettings, setBridgeSettings] = useState<BridgeSettings>({
     autoScreenshotOnReply: false,
@@ -69,6 +73,7 @@ export function App() {
   const [renameDraft, setRenameDraft] = useState('');
   const activeSessionIdRef = useRef<string | null>(null);
   const snapshotPublishTimerRef = useRef<number | null>(null);
+  const appLogViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const unsubscribeUpdated = window.terminalApp.onSessionUpdated((session) => {
@@ -85,12 +90,16 @@ export function App() {
     const unsubscribeData = window.terminalApp.onSessionData((_event) => {
       scheduleViewSnapshotPublish();
     });
+    const unsubscribeAppLogEntry = window.terminalApp.onAppLogEntry((entry) => {
+      setAppLogs((current) => appendAppLogEntry(current, entry));
+    });
 
     void (async () => {
       const state = await window.terminalApp.bootstrap();
       setBootstrapState(state);
       setSessions(state.sessions);
       setSlotSettings(state.terminalSlots);
+      setAppLogs(state.appLogs);
       setBridgeSettings(state.bridgeSettings);
       setSettingsDraft(createSettingsDraft(state.bridgeSettings));
       setSlotDrafts(state.terminalSlots);
@@ -101,11 +110,20 @@ export function App() {
       unsubscribeUpdated();
       unsubscribeExit();
       unsubscribeData();
+      unsubscribeAppLogEntry();
       if (snapshotPublishTimerRef.current !== null) {
         window.clearTimeout(snapshotPublishTimerRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!logsOpen || !appLogViewportRef.current) {
+      return;
+    }
+
+    appLogViewportRef.current.scrollTop = appLogViewportRef.current.scrollHeight;
+  }, [logsOpen, appLogs]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -126,6 +144,7 @@ export function App() {
     }
     return map;
   }, [sessions]);
+  const appLogText = useMemo(() => appLogs.map((entry) => entry.text).join(''), [appLogs]);
 
   function scheduleViewSnapshotPublish() {
     if (snapshotPublishTimerRef.current !== null) {
@@ -141,6 +160,7 @@ export function App() {
   }
 
   function openSettings() {
+    setLogsOpen(false);
     setSettingsError(null);
     setSettingsDraft(createSettingsDraft(bridgeSettings));
     setSlotDrafts(slotSettings);
@@ -154,6 +174,15 @@ export function App() {
 
     setSettingsOpen(false);
     setSettingsError(null);
+  }
+
+  function openLogs() {
+    setSettingsOpen(false);
+    setLogsOpen(true);
+  }
+
+  function closeLogs() {
+    setLogsOpen(false);
   }
 
   async function saveSettings() {
@@ -307,18 +336,17 @@ export function App() {
           <div className="titlebar__left">
             <span className="titlebar__eyebrow">PowerShell</span>
             <span className="titlebar__title">Discord Bridge</span>
-          </div>
-          <div className="titlebar__meta">
-            <span>{bootstrapState?.shellLabel ?? 'PowerShell'}</span>
+            {feedback ? <span className="titlebar__feedback">{feedback}</span> : null}
           </div>
           <div className="titlebar__actions">
+            <button className={logsOpen ? 'action-button action-button--selected' : 'action-button'} onClick={openLogs}>
+              Logs
+            </button>
             <button className="action-button" onClick={openSettings}>
               Settings
             </button>
           </div>
         </header>
-
-        {feedback ? <div className="app-feedback">{feedback}</div> : null}
 
         <main className="terminal-grid">
           {slots.map((slot) => {
@@ -409,6 +437,29 @@ export function App() {
           })}
         </main>
       </div>
+
+      {logsOpen ? (
+        <div className="settings-screen" role="dialog" aria-modal="true">
+          <div className="log-screen__panel">
+            <header className="settings-screen__header">
+              <div>
+                <div className="settings-screen__title">Logs</div>
+                <div className="settings-screen__subtitle">Main process stdout, stderr, and terminal input/action logs.</div>
+              </div>
+              <button className="action-button" onClick={closeLogs}>
+                Close
+              </button>
+            </header>
+            <div ref={appLogViewportRef} className="app-log-panel__viewport app-log-panel__viewport--overlay">
+              {appLogText.length > 0 ? (
+                <pre className="app-log-panel__content">{appLogText}</pre>
+              ) : (
+                <div className="app-log-panel__empty">No logs yet.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {settingsOpen ? (
         <div className="settings-screen" role="dialog" aria-modal="true">
@@ -738,6 +789,14 @@ function getPaneStatus(session: TerminalSessionSummary | null): { label: string;
     label: 'LIVE',
     className: 'terminal-tile__status terminal-tile__status--live'
   };
+}
+
+function appendAppLogEntry(current: AppLogEntry[], entry: AppLogEntry): AppLogEntry[] {
+  if (current.length >= MAX_RENDERED_APP_LOGS) {
+    return [...current.slice(current.length - MAX_RENDERED_APP_LOGS + 1), entry];
+  }
+
+  return [...current, entry];
 }
 
 function updateSlotDraft(

@@ -1,6 +1,7 @@
 import { config as loadEnvFile } from 'dotenv';
 import { app, BrowserWindow } from 'electron';
 import { APP_USER_MODEL_ID } from './app/appIdentity';
+import { AppLogStore } from './app/appLogStore';
 import { createMainWindow } from './app/createMainWindow';
 import { loadBridgeRuntimeConfig } from './bridge/bridgeConfig';
 import { ChannelSessionRegistry } from './bridge/channelSessionRegistry';
@@ -10,6 +11,9 @@ import { PreferencesStore } from './app/preferencesStore';
 import { TerminalSlotService } from './app/terminalSlotService';
 import { registerIpc } from './ipc/registerIpc';
 import { TerminalSessionManager } from './terminal/terminalSessionManager';
+
+const appLogStore = new AppLogStore();
+appLogStore.installProcessCapture();
 
 loadEnvFile();
 app.setAppUserModelId(APP_USER_MODEL_ID);
@@ -21,7 +25,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 async function bootstrap(): Promise<void> {
   const preferencesStore = new PreferencesStore();
-  terminalSessionManager = new TerminalSessionManager(preferencesStore);
+  terminalSessionManager = new TerminalSessionManager(preferencesStore, appLogStore);
   const terminalSlotService = new TerminalSlotService(preferencesStore, terminalSessionManager);
   const bridgeRuntimeConfig = loadBridgeRuntimeConfig();
   if (bridgeRuntimeConfig.allowUserIds.length === 0) {
@@ -52,7 +56,8 @@ async function bootstrap(): Promise<void> {
     preferencesStore,
     terminalAutomationService,
     terminalSessionManager,
-    terminalSlotService
+    terminalSlotService,
+    appLogStore
   });
 
   window.once('closed', () => {

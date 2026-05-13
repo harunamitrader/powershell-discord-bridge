@@ -6,6 +6,7 @@ export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter';
 export type TerminalSnapshotReason = 'before-send' | 'after-complete' | 'manual';
 export type TerminalSlotId = 1 | 2 | 3 | 4;
 export type BridgeReplyFormat = 'command' | 'plain-text';
+export type AppLogStream = 'stdout' | 'stderr';
 export type CompletionReason =
   | 'prompt_ready'
   | 'idle_stable'
@@ -54,6 +55,13 @@ export interface TerminalSlotSettingsUpdateResult {
   session?: TerminalSessionSummary;
 }
 
+export interface AppLogEntry {
+  id: number;
+  timestamp: string;
+  stream: AppLogStream;
+  text: string;
+}
+
 export interface BootstrapState {
   defaultCwd: string;
   shellLabel: string;
@@ -61,6 +69,7 @@ export interface BootstrapState {
   bridgeSettings: BridgeSettings;
   terminalSlots: TerminalSlotSettings[];
   sessions: TerminalSessionSummary[];
+  appLogs: AppLogEntry[];
 }
 
 export interface CreateSessionOptions {
@@ -298,6 +307,7 @@ export interface TerminalApi {
   onSessionUpdated(listener: (session: TerminalSessionSummary) => void): () => void;
   onSessionData(listener: (event: TerminalSessionDataEvent) => void): () => void;
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void;
+  onAppLogEntry(listener: (entry: AppLogEntry) => void): () => void;
   updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings>;
   publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void>;
   getTerminalScreenshotExport(sessionId: string): Promise<TerminalScreenshotExportData>;

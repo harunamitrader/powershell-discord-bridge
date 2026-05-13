@@ -69,6 +69,7 @@ button {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  min-width: 0;
 }
 
 .titlebar__eyebrow {
@@ -83,15 +84,10 @@ button {
   font-weight: 600;
 }
 
-.titlebar__meta {
-  display: flex;
+.titlebar__feedback {
   min-width: 0;
-  gap: 16px;
   color: #7f7f7f;
   font-size: 12px;
-}
-
-.titlebar__meta span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -99,15 +95,8 @@ button {
 
 .titlebar__actions {
   display: flex;
+  align-items: center;
   gap: 8px;
-}
-
-.app-feedback {
-  padding: 8px 16px;
-  border-bottom: 1px solid #2b2b2b;
-  background: #1b1b1b;
-  color: #8a8a8a;
-  font-size: 12px;
 }
 
 .terminal-grid {
@@ -118,6 +107,61 @@ button {
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 10px;
+}
+
+.app-log-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  padding: 10px;
+  gap: 10px;
+}
+
+.app-log-panel__header {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-log-panel__title {
+  color: #f0f0f0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.app-log-panel__subtitle {
+  color: #7f7f7f;
+  font-size: 12px;
+}
+
+.app-log-panel__viewport {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px;
+  border: 1px solid #2f2f2f;
+  background: #121212;
+  overflow: auto;
+}
+
+.app-log-panel__content {
+  margin: 0;
+  color: #d6d6d6;
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-log-panel__empty {
+  color: #7f7f7f;
+  font-size: 13px;
+}
+
+.app-log-panel__viewport--overlay {
+  margin: 0 20px 20px;
 }
 
 .terminal-tile {
@@ -133,7 +177,9 @@ button {
 
 .terminal-tile--active {
   border-color: #4e7fbd;
-  box-shadow: 0 0 0 1px rgb(108 182 255 / 30%);
+  box-shadow:
+    0 0 0 2px rgb(108 182 255 / 48%),
+    inset 0 0 0 1px rgb(108 182 255 / 14%);
 }
 
 .terminal-tile__header {
@@ -393,6 +439,12 @@ button {
   font-size: 12px;
 }
 
+.action-button--selected {
+  border-color: #5f8dd1;
+  background: #203247;
+  color: #e8f2ff;
+}
+
 .action-button:hover {
   background: #2e2e2f;
 }
@@ -415,6 +467,18 @@ button {
 .settings-screen__panel {
   display: flex;
   width: min(1180px, 100%);
+  flex-direction: column;
+  border: 1px solid #343434;
+  border-radius: 12px;
+  background: #1b1b1b;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 40%);
+  overflow: hidden;
+}
+
+.log-screen__panel {
+  display: flex;
+  width: min(1120px, 100%);
+  max-width: 1120px;
   flex-direction: column;
   border: 1px solid #343434;
   border-radius: 12px;

@@ -19,6 +19,7 @@ import type {
   TerminalWriteRequest,
   TerminalWriteSource
 } from '../../shared/terminal';
+import { AppLogStore } from '../app/appLogStore';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalOutputParser } from './outputParser';
 import { SessionSnapshotMirror } from './sessionSnapshotMirror';
@@ -51,10 +52,12 @@ export class TerminalSessionManager extends EventEmitter {
   private readonly integrationScriptPath: string;
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly shellInfo = detectPowerShell();
+  private readonly appLogStore?: AppLogStore;
 
-  constructor(preferencesStore: PreferencesStore) {
+  constructor(preferencesStore: PreferencesStore, appLogStore?: AppLogStore) {
     super();
     this.preferencesStore = preferencesStore;
+    this.appLogStore = appLogStore;
     this.integrationScriptPath = ensurePowerShellIntegrationScript();
   }
 
@@ -178,11 +181,16 @@ export class TerminalSessionManager extends EventEmitter {
     }
 
     enforceLocalWritePolicy(session.summary, request.source ?? 'local');
+    this.logWrite(session.summary, request.data, request.source ?? 'local');
     session.pty.write(request.data);
   }
 
   sendKey(sessionId: string, key: TerminalControlKey, source: TerminalWriteRequest['source'] = 'bridge'): void {
     const payload = toControlSequence(key);
+    const session = this.getSessionRecord(sessionId);
+    if (session) {
+      this.appLogStore?.appendMessage('stdout', `[terminal key] ${describeSession(session.summary)} source=${source} key=${key}\n`);
+    }
     this.write({
       sessionId,
       data: payload,
@@ -291,6 +299,11 @@ export class TerminalSessionManager extends EventEmitter {
       throw new Error(`Unknown terminal session: ${request.sessionId}`);
     }
 
+    this.appLogStore?.appendMessage(
+      'stdout',
+      `[terminal redraw] ${describeSession(session.summary)} shrinkCols=${request.shrinkCols ?? 1} waitAfterShrinkMs=${request.waitAfterShrinkMs ?? 150} waitAfterRestoreMs=${request.waitAfterRestoreMs ?? 250}\n`
+    );
+
     const original = {
       cols: session.summary.cols,
       rows: session.summary.rows
@@ -350,6 +363,14 @@ export class TerminalSessionManager extends EventEmitter {
   private getSessionRecord(sessionId: string): SessionRecord | undefined {
     return this.sessions.get(sessionId);
   }
+
+  private logWrite(summary: TerminalSessionSummary, data: string, source: TerminalWriteSource): void {
+    if (isKnownControlSequence(data)) {
+      return;
+    }
+
+    this.appLogStore?.appendMessage('stdout', `[terminal input] ${describeSession(summary)} source=${source} data=${JSON.stringify(data)}\n`);
+  }
 }
 
 function resolveDimensions(mode: TerminalSessionMode, partial?: Partial<TerminalDimensions>): TerminalDimensions {
@@ -406,6 +427,15 @@ function normalizeResizeRequest(
 function enforceLocalWritePolicy(summary: TerminalSessionSummary, source: TerminalWriteSource): void {
   void summary;
   void source;
+}
+
+function isKnownControlSequence(data: string): boolean {
+  return data === '\r' || data === '\u0003' || data === '\u001b';
+}
+
+function describeSession(summary: TerminalSessionSummary): string {
+  const title = summary.title ?? (summary.slotId ? `slot-${summary.slotId}` : summary.id);
+  return `session=${summary.id} title=${JSON.stringify(title)}`;
 }
 
 function toControlSequence(key: TerminalControlKey): string {
