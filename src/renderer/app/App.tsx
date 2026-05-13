@@ -347,10 +347,10 @@ export function App() {
                           onKeyDown={(event) => handleRenameKeyDown(event, session)}
                           autoFocus
                         />
-                        <button className="action-button" onClick={() => void submitRenameSession(session, renameDraft)}>
+                        <button className="action-button action-button--compact" onClick={() => void submitRenameSession(session, renameDraft)}>
                           Save
                         </button>
-                        <button className="action-button" onClick={cancelRenameSession}>
+                        <button className="action-button action-button--compact" onClick={cancelRenameSession}>
                           Cancel
                         </button>
                       </div>
@@ -370,7 +370,7 @@ export function App() {
                   <div className="terminal-tile__header-actions">
                     <span className={status.className}>{status.label}</span>
                     <button
-                      className="action-button"
+                      className="action-button action-button--compact"
                       onClick={() => {
                         if (session) {
                           void redrawSlot(slot.slotId, session);
@@ -381,18 +381,13 @@ export function App() {
                       Redraw
                     </button>
                     <button
-                      className="action-button"
+                      className="action-button action-button--compact"
                       onClick={() => void restartSlot(slot.slotId)}
                       disabled={restartingSlotId === slot.slotId || redrawingSlotId === slot.slotId}
                     >
                       Restart
                     </button>
                   </div>
-                </div>
-
-                <div className="terminal-tile__meta">
-                  <span>{slot.cwd}</span>
-                  <span>{slot.channelId ? `Channel: ${slot.channelId}` : 'Channel: auto create on save/start'}</span>
                 </div>
 
                 <div className="terminal-tile__body">

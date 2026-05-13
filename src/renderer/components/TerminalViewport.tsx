@@ -11,6 +11,9 @@ interface TerminalViewportProps {
 }
 
 export function TerminalViewport({ session, focused, onActivate }: TerminalViewportProps) {
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const wellRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -21,7 +24,7 @@ export function TerminalViewport({ session, focused, onActivate }: TerminalViewp
   }, [onActivate]);
 
   useEffect(() => {
-    if (!containerRef.current || terminalRef.current) {
+    if (!surfaceRef.current || !wellRef.current || !viewportRef.current || !containerRef.current || terminalRef.current) {
       return;
     }
 
@@ -74,7 +77,7 @@ export function TerminalViewport({ session, focused, onActivate }: TerminalViewp
         }
       });
 
-      resizeObserver.observe(containerRef.current);
+      resizeObserver.observe(viewportRef.current);
       fitAndSync(session.id, fitAddon, terminal);
     } else {
       terminal.resize(session.cols, session.rows);
@@ -119,11 +122,24 @@ export function TerminalViewport({ session, focused, onActivate }: TerminalViewp
   }, [focused, session.cols, session.rows, session.id, session.resizeMode]);
 
   const surfaceClassName =
-    session.resizeMode === 'fixed' ? 'terminal-viewport__surface terminal-viewport__surface--fixed' : 'terminal-viewport__surface';
+    focused ? 'terminal-viewport__surface terminal-viewport__surface--focused' : 'terminal-viewport__surface';
+  const wellClassName = session.resizeMode === 'fixed' ? 'terminal-viewport__well terminal-viewport__well--fixed' : 'terminal-viewport__well';
+  const viewportClassName =
+    session.resizeMode === 'fixed'
+      ? 'terminal-viewport__viewport terminal-viewport__viewport--fixed'
+      : 'terminal-viewport__viewport';
+  const mountClassName =
+    session.resizeMode === 'fixed' ? 'terminal-viewport__mount terminal-viewport__mount--fixed' : 'terminal-viewport__mount';
 
   return (
     <div className="terminal-viewport">
-      <div ref={containerRef} className={surfaceClassName} />
+      <div ref={surfaceRef} className={surfaceClassName}>
+        <div ref={wellRef} className={wellClassName}>
+          <div ref={viewportRef} className={viewportClassName}>
+            <div ref={containerRef} className={mountClassName} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

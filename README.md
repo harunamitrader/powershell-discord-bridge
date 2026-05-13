@@ -147,9 +147,9 @@ npm run build
 npm start
 ```
 
-### デスクトップ / スタートアップのショートカットを作る
+### デスクトップショートカットを作る
 
-アプリ用アイコン付きのショートカットを、**デスクトップ**と **Windows のスタートアップ** にまとめて作る場合は、次を 1 回実行してください。
+アプリ用アイコン付きの**デスクトップショートカット**を作る場合は、次を 1 回実行してください。
 
 ```powershell
 .\install-shortcuts.cmd
@@ -161,7 +161,7 @@ npm start
 npm run setup:shortcuts
 ```
 
-このショートカットは `assets\app-icon.ico` を使い、実体としては `launch-powershell-discord-bridge.cmd` を起動します。
+このショートカットは `assets\app-icon.ico` を使い、実体としては `launch-powershell-discord-bridge.cmd` を起動します。**スタートアップには登録しません。** 以前の設定で同名のスタートアップショートカットが残っている場合は、このセットアップ実行時に削除します。
 
 ## 6. 使い方
 

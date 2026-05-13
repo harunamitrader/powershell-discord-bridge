@@ -16,23 +16,22 @@ foreach ($requiredPath in @($launcherPath, $iconPath)) {
 
 $desktopDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
 $startupDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
-$shortcutPaths = @(
-  (Join-Path $desktopDirectory "$ShortcutName.lnk"),
-  (Join-Path $startupDirectory "$ShortcutName.lnk")
-)
+$desktopShortcutPath = Join-Path $desktopDirectory "$ShortcutName.lnk"
+$startupShortcutPath = Join-Path $startupDirectory "$ShortcutName.lnk"
 
 $shell = New-Object -ComObject WScript.Shell
 
-foreach ($shortcutPath in $shortcutPaths) {
-  $shortcut = $shell.CreateShortcut($shortcutPath)
-  $shortcut.TargetPath = $launcherPath
-  $shortcut.WorkingDirectory = $repoRoot
-  $shortcut.IconLocation = "$iconPath,0"
-  $shortcut.Description = 'Launch PowerShell Discord Bridge'
-  $shortcut.Save()
+$shortcut = $shell.CreateShortcut($desktopShortcutPath)
+$shortcut.TargetPath = $launcherPath
+$shortcut.WorkingDirectory = $repoRoot
+$shortcut.IconLocation = "$iconPath,0"
+$shortcut.Description = 'Launch PowerShell Discord Bridge'
+$shortcut.Save()
+
+if (Test-Path $startupShortcutPath) {
+  Remove-Item $startupShortcutPath -Force
+  Write-Host "Removed startup shortcut: $startupShortcutPath"
 }
 
-Write-Host "Created shortcuts:"
-foreach ($shortcutPath in $shortcutPaths) {
-  Write-Host " - $shortcutPath"
-}
+Write-Host "Created desktop shortcut:"
+Write-Host " - $desktopShortcutPath"

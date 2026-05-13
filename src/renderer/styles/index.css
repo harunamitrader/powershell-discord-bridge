@@ -140,8 +140,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 7px 10px;
   border-bottom: 1px solid #2b2b2b;
   background: #202020;
 }
@@ -149,7 +149,7 @@ button {
 .terminal-tile__header-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -157,13 +157,13 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 24px;
-  padding: 0 8px;
+  min-width: 24px;
+  height: 20px;
+  padding: 0 7px;
   border-radius: 999px;
   background: #2c2c2c;
   color: #bdbdbd;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 
@@ -171,7 +171,7 @@ button {
   min-width: 0;
   overflow: hidden;
   color: #f0f0f0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -182,11 +182,11 @@ button {
 .terminal-tile__header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .terminal-tile__status {
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.08em;
 }
 
@@ -200,22 +200,6 @@ button {
 
 .terminal-tile__status--exit {
   color: #9d9d9d;
-}
-
-.terminal-tile__meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid #252525;
-  color: #7d7d7d;
-  font-size: 11px;
-}
-
-.terminal-tile__meta span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .terminal-tile__body {
@@ -256,7 +240,7 @@ button {
 
 .rename-editor__input {
   min-width: 220px;
-  padding: 7px 11px;
+  padding: 5px 9px;
   border: 1px solid #4a4a4a;
   border-radius: 6px;
   background: #111214;
@@ -270,35 +254,109 @@ button {
 }
 
 .terminal-viewport {
+  display: flex;
   width: 100%;
   height: 100%;
-  padding: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 6px 6px 4px;
 }
 
 .terminal-viewport__surface {
+  display: flex;
   width: 100%;
   height: 100%;
-  border: 1px solid #2c2c2c;
-  border-radius: 8px;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid #314152;
+  border-radius: 0;
+  overflow: hidden;
+  background: #101418;
+}
+
+.terminal-viewport__surface--focused {
+  border-color: #5f8dd1;
+}
+
+.terminal-viewport__well {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.terminal-viewport__well--fixed {
+  overflow: hidden;
+}
+
+.terminal-viewport__viewport {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px;
+}
+
+.terminal-viewport__viewport--fixed {
+  overflow: auto;
+  padding: 8px 24px 8px 8px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.terminal-viewport__mount {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid #39414c;
+  border-radius: 0;
   overflow: hidden;
   background: #1e1e1e;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 3%);
 }
 
-.terminal-viewport__surface--fixed {
-  overflow: auto;
+.terminal-viewport__mount--fixed {
+  display: inline-block;
+  width: max-content;
+  height: max-content;
 }
 
-.terminal-viewport__surface .xterm {
+.terminal-viewport__mount .xterm {
+  display: block;
+  width: 100%;
   height: 100%;
 }
 
-.terminal-viewport__surface .xterm-viewport {
+.terminal-viewport__mount--fixed .xterm {
+  width: max-content;
+  height: max-content;
+  box-sizing: content-box;
+  padding-right: 22px;
+  padding-bottom: 10px;
+}
+
+.terminal-viewport__mount .xterm-viewport {
+  height: 100%;
   scrollbar-gutter: stable;
 }
 
-.terminal-viewport__surface .xterm-screen,
-.terminal-viewport__surface .xterm-rows {
-  padding-right: 12px;
+.terminal-viewport__mount .xterm-screen,
+.terminal-viewport__mount .xterm-rows {
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.terminal-viewport__mount--fixed .xterm-screen,
+.terminal-viewport__mount--fixed .xterm-rows {
+  margin-right: 22px;
+  margin-bottom: 10px;
 }
 
 .terminal-export-page {
@@ -327,6 +385,12 @@ button {
   background: #252526;
   color: #d6d6d6;
   cursor: pointer;
+}
+
+.action-button--compact {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
 }
 
 .action-button:hover {
