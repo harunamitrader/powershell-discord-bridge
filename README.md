@@ -12,6 +12,10 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 > このツールは **あなたの PC 上で PowerShell を実行します**。  
 > つまり、許可した Discord ユーザーから送られた内容は、あなたの PC に対する操作になります。公開サーバーに入れる汎用 bot ではなく、**自分用・小規模運用向けのローカルツール**として考えてください。
 
+## 1枚でわかる PowerShell Discord Bridge
+
+![PowerShell Discord Bridge one-page overview](docs/images/readme-overview-ja.png)
+
 ## 画面イメージ
 
 ### アプリ画面
