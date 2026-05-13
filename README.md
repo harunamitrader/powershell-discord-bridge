@@ -223,10 +223,11 @@ npm run setup:shortcuts
 
 初期値は次のとおりです。
 
-- Discord reply format: `plain text`
-- Soft timeout: `60s`
+- Auto screenshot after reply: `ON`
+- Discord reply format: `code block`
+- Soft timeout: `300s`
 - Hard timeout: `unlimited`（入力欄の表示値は `7200s`）
-- Bridge size: `100 cols x 100 rows`
+- Bridge size: `100 cols x 50 rows`
 
 ## はじめて使うときのおすすめ確認
 

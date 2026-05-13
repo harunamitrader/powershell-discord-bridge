@@ -133,6 +133,6 @@ ALLOW_GUILD_ID=...
 - 設定はヘッダー右上の Settings から別画面で開きます
 - Logs もヘッダー右上から Settings と同様のオーバーレイで開きます
 - 設定画面では、Global 設定と Per terminal 設定を分けて管理します
-- Global 設定の初期値は、`plain text` 返信、`soft timeout 60s`、`hard timeout unlimited`、`100x100` bridge サイズです
+- Global 設定の初期値は、`auto screenshot ON`、`code block` 返信、`soft timeout 300s`、`hard timeout unlimited`、`100x50` bridge サイズです
 - Global 設定の bridge rows は `15` 以上で設定します
 - ワークスペース名を変更した場合は、対応する Discord チャンネル名も追従して変更されます

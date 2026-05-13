@@ -29,13 +29,13 @@ interface StoredTerminalSlot {
 }
 
 const DEFAULT_BRIDGE_SETTINGS = {
-  autoScreenshotOnReply: false,
-  replyFormat: 'plain-text' as BridgeReplyFormat,
-  softTimeoutMs: 60000,
+  autoScreenshotOnReply: true,
+  replyFormat: 'command' as BridgeReplyFormat,
+  softTimeoutMs: 300000,
   hardTimeoutMs: null,
   bridgeDimensions: {
     cols: 100,
-    rows: 100
+    rows: 50
   }
 } as const;
 const MIN_BRIDGE_COLS = 40;

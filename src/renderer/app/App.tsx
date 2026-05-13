@@ -44,23 +44,23 @@ export function App() {
   const [logsOpen, setLogsOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [bridgeSettings, setBridgeSettings] = useState<BridgeSettings>({
-    autoScreenshotOnReply: false,
-    replyFormat: 'plain-text',
-    softTimeoutMs: 60000,
+    autoScreenshotOnReply: true,
+    replyFormat: 'command',
+    softTimeoutMs: 300000,
     hardTimeoutMs: null,
     bridgeDimensions: {
       cols: 100,
-      rows: 100
+      rows: 50
     }
   });
   const [settingsDraft, setSettingsDraft] = useState<SettingsDraft>({
-    autoScreenshotOnReply: false,
-    replyFormat: 'plain-text',
-    softTimeoutSeconds: '60',
+    autoScreenshotOnReply: true,
+    replyFormat: 'command',
+    softTimeoutSeconds: '300',
     hardTimeoutSeconds: String(DEFAULT_HARD_TIMEOUT_SECONDS),
     hardTimeoutUnlimited: true,
     bridgeCols: '100',
-    bridgeRows: '100'
+    bridgeRows: '50'
   });
   const [slotDrafts, setSlotDrafts] = useState<TerminalSlotSettings[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
