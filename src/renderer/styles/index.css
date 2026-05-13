@@ -288,6 +288,19 @@ button {
   overflow: auto;
 }
 
+.terminal-viewport__surface .xterm {
+  height: 100%;
+}
+
+.terminal-viewport__surface .xterm-viewport {
+  scrollbar-gutter: stable;
+}
+
+.terminal-viewport__surface .xterm-screen,
+.terminal-viewport__surface .xterm-rows {
+  padding-right: 12px;
+}
+
 .terminal-export-page {
   display: inline-flex;
   padding: 0;
