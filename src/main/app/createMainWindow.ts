@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, shell } from 'electron';
 import path from 'node:path';
 import { resolveAppIconPath } from './appIdentity';
 import { PreferencesStore } from './preferencesStore';
+import { dismissStartupSplash } from './startupSplashSignal';
 
 const DEFAULT_WINDOW = {
   width: 1480,
@@ -16,6 +17,7 @@ export function createMainWindow(preferencesStore: PreferencesStore): BrowserWin
     height: bounds?.height ?? DEFAULT_WINDOW.height,
     x: bounds?.x,
     y: bounds?.y,
+    show: false,
     minWidth: 1100,
     minHeight: 720,
     autoHideMenuBar: true,
@@ -63,7 +65,12 @@ export function createMainWindow(preferencesStore: PreferencesStore): BrowserWin
   });
 
   window.once('ready-to-show', () => {
+    dismissStartupSplash();
     window.show();
+  });
+
+  window.once('closed', () => {
+    dismissStartupSplash();
   });
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;

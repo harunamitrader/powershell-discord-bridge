@@ -8,6 +8,7 @@ import { ChannelSessionRegistry } from './bridge/channelSessionRegistry';
 import { DiscordBridgeService } from './bridge/discordBridgeService';
 import { TerminalAutomationService } from './bridge/terminalAutomationService';
 import { PreferencesStore } from './app/preferencesStore';
+import { dismissStartupSplash } from './app/startupSplashSignal';
 import { TerminalSlotService } from './app/terminalSlotService';
 import { registerIpc } from './ipc/registerIpc';
 import { TerminalSessionManager } from './terminal/terminalSessionManager';
@@ -76,6 +77,11 @@ async function bootstrap(): Promise<void> {
   }
 }
 
+function handleStartupFailure(message: string, error: unknown): void {
+  console.error(message, error);
+  dismissStartupSplash();
+}
+
 function focusMainWindow(): void {
   if (!mainWindow) {
     return;
@@ -89,24 +95,34 @@ function focusMainWindow(): void {
 }
 
 if (!hasSingleInstanceLock) {
+  dismissStartupSplash();
   app.quit();
 } else {
   app.on('second-instance', () => {
     focusMainWindow();
   });
 
-  void app.whenReady().then(async () => {
-    await bootstrap();
+  void app.whenReady()
+    .then(async () => {
+      await bootstrap();
 
-    app.on('activate', async () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        await bootstrap();
-        return;
-      }
+      app.on('activate', async () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          try {
+            await bootstrap();
+          } catch (error) {
+            handleStartupFailure('Failed to re-open main window', error);
+          }
+          return;
+        }
 
-      focusMainWindow();
+        focusMainWindow();
+      });
+    })
+    .catch((error: unknown) => {
+      handleStartupFailure('App startup failed', error);
+      app.quit();
     });
-  });
 }
 
 app.on('window-all-closed', () => {

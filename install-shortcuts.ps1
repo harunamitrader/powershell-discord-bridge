@@ -7,9 +7,10 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSCommandPath
 $launcherPath = Join-Path $repoRoot 'launch-powershell-discord-bridge.cmd'
 $hiddenLauncherPath = Join-Path $repoRoot 'launch-powershell-discord-bridge-hidden.vbs'
+$splashScriptPath = Join-Path $repoRoot 'launch-powershell-discord-bridge-splash.ps1'
 $iconPath = Join-Path $repoRoot 'assets\app-icon.ico'
 
-foreach ($requiredPath in @($launcherPath, $hiddenLauncherPath, $iconPath)) {
+foreach ($requiredPath in @($launcherPath, $hiddenLauncherPath, $splashScriptPath, $iconPath)) {
   if (-not (Test-Path $requiredPath)) {
     throw "Required file not found: $requiredPath"
   }
@@ -26,7 +27,7 @@ $shortcut = $shell.CreateShortcut($desktopShortcutPath)
 $shortcut.TargetPath = $hiddenLauncherPath
 $shortcut.WorkingDirectory = $repoRoot
 $shortcut.IconLocation = "$iconPath,0"
-$shortcut.Description = 'Launch PowerShell Discord Bridge without console window'
+$shortcut.Description = 'Launch PowerShell Discord Bridge with startup status and no console window'
 $shortcut.Save()
 
 if (Test-Path $startupShortcutPath) {

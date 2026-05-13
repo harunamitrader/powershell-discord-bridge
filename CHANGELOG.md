@@ -16,6 +16,7 @@
 - terminal slot 再起動とアプリ再起動の Discord コマンド
 - アプリ内で main process ログと terminal 入力ログを確認できる Logs オーバーレイ
 - デスクトップショートカット向けの hidden launcher
+- デスクトップショートカット起動中に出す一時的な起動メッセージウィンドウ
 
 ### Changed
 

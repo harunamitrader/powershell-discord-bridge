@@ -2,11 +2,16 @@
 setlocal
 
 cd /d "%~dp0"
+set "PS_DISCORD_BRIDGE_SPLASH_SIGNAL=%~1"
+set "exit_code=0"
 
 if not exist "node_modules" (
   echo Installing dependencies...
   call npm install
-  if errorlevel 1 exit /b %errorlevel%
+  if errorlevel 1 (
+    set "exit_code=%errorlevel%"
+    goto :cleanup
+  )
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -23,7 +28,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 if errorlevel 1 (
   echo Building app...
   call npm run build
-  if errorlevel 1 exit /b %errorlevel%
+  if errorlevel 1 (
+    set "exit_code=%errorlevel%"
+    goto :cleanup
+  )
 )
 
 call npm run start
+set "exit_code=%errorlevel%"
+
+:cleanup
+if defined PS_DISCORD_BRIDGE_SPLASH_SIGNAL if exist "%PS_DISCORD_BRIDGE_SPLASH_SIGNAL%" del "%PS_DISCORD_BRIDGE_SPLASH_SIGNAL%" >nul 2>&1
+endlocal & exit /b %exit_code%
