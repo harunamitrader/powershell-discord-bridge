@@ -139,32 +139,12 @@ async function getExportCaptureRect(window: BrowserWindow): Promise<ExportCaptur
         return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
       }
 
-      const candidates = [
-        ...root.querySelectorAll('.xterm-screen canvas, .xterm-screen, .xterm-viewport')
-      ];
-      const rects = candidates
-        .map((node) => node.getBoundingClientRect())
-        .filter((box) => box.width > 0 && box.height > 0);
-
-      if (rects.length === 0) {
-        const box = root.getBoundingClientRect();
-        return {
-          x: Math.max(0, Math.floor(box.left)),
-          y: Math.max(0, Math.floor(box.top)),
-          width: Math.max(1, Math.ceil(box.width)),
-          height: Math.max(1, Math.ceil(box.height))
-        };
-      }
-
-      const left = Math.min(...rects.map((box) => box.left));
-      const top = Math.min(...rects.map((box) => box.top));
-      const right = Math.max(...rects.map((box) => box.right));
-      const bottom = Math.max(...rects.map((box) => box.bottom));
+      const box = root.getBoundingClientRect();
       return {
-        x: Math.max(0, Math.floor(left)),
-        y: Math.max(0, Math.floor(top)),
-        width: Math.max(1, Math.ceil(right - left)),
-        height: Math.max(1, Math.ceil(bottom - top))
+        x: Math.max(0, Math.floor(box.left)),
+        y: Math.max(0, Math.floor(box.top)),
+        width: Math.max(1, Math.ceil(box.width)),
+        height: Math.max(1, Math.ceil(box.height))
       };
     })()`,
     true

@@ -86,6 +86,9 @@ export function App() {
       setRenamingSessionId((current) => (current === sessionId ? null : current));
       scheduleViewSnapshotPublish();
     });
+    const unsubscribeActivated = window.terminalApp.onSessionActivated(({ sessionId }) => {
+      setActiveSessionId(sessionId);
+    });
 
     const unsubscribeData = window.terminalApp.onSessionData((_event) => {
       scheduleViewSnapshotPublish();
@@ -109,6 +112,7 @@ export function App() {
     return () => {
       unsubscribeUpdated();
       unsubscribeExit();
+      unsubscribeActivated();
       unsubscribeData();
       unsubscribeAppLogEntry();
       if (snapshotPublishTimerRef.current !== null) {

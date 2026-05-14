@@ -408,12 +408,22 @@ button {
 .terminal-export-page {
   display: inline-flex;
   padding: 0;
-  background: #1e1e1e;
+  background: #181818;
 }
 
 .terminal-export-page__surface {
-  display: inline-block;
-  background: #1e1e1e;
+  display: inline-flex;
+  width: auto;
+  height: auto;
+}
+
+.terminal-export-page__viewport {
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+
+.terminal-export-page__mount {
+  flex: none;
 }
 
 .terminal-export-page__error {

@@ -38,10 +38,10 @@ const DEFAULT_BRIDGE_SETTINGS = {
     rows: 50
   }
 } as const;
-const MIN_BRIDGE_COLS = 40;
-const MIN_BRIDGE_ROWS = 15;
-const MAX_BRIDGE_COLS = 400;
-const MAX_BRIDGE_ROWS = 120;
+export const MIN_BRIDGE_COLS = 40;
+export const MIN_BRIDGE_ROWS = 15;
+export const MAX_BRIDGE_COLS = 400;
+export const MAX_BRIDGE_ROWS = 120;
 const MIN_SOFT_TIMEOUT_MS = 1000;
 const MAX_SOFT_TIMEOUT_MS = 300000;
 const MIN_HARD_TIMEOUT_MS = 5000;

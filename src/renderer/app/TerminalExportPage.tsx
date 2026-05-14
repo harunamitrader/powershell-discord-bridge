@@ -7,7 +7,7 @@ type ExportState = 'loading' | 'ready' | 'error';
 export function TerminalExportPage() {
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const sessionId = searchParams.get('sessionId')?.trim() ?? '';
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mountRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function TerminalExportPage() {
         const exportData = await window.terminalApp.getTerminalScreenshotExport(sessionId);
         await waitForFonts();
 
-        if (disposed || !containerRef.current) {
+        if (disposed || !mountRef.current) {
           return;
         }
 
@@ -41,7 +41,7 @@ export function TerminalExportPage() {
           rows: exportData.rows,
           scrollback: 5000
         });
-        terminal.open(containerRef.current);
+        terminal.open(mountRef.current);
 
         if (exportData.transcript.length > 0) {
           await writeTerminal(terminal, exportData.transcript);
@@ -76,7 +76,13 @@ export function TerminalExportPage() {
       {error ? (
         <div className="terminal-export-page__error">{error}</div>
       ) : (
-        <div ref={containerRef} className="terminal-export-page__surface" data-terminal-export-root="true" />
+        <div className="terminal-export-page__surface terminal-viewport__surface" data-terminal-export-root="true">
+          <div className="terminal-viewport__well terminal-viewport__well--fixed">
+            <div className="terminal-export-page__viewport terminal-viewport__viewport terminal-viewport__viewport--fixed">
+              <div ref={mountRef} className="terminal-export-page__mount terminal-viewport__mount terminal-viewport__mount--fixed" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

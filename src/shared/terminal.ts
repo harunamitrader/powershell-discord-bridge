@@ -103,6 +103,11 @@ export interface TerminalSessionExitEvent {
   exitCode: number;
 }
 
+export interface TerminalSessionActivatedEvent {
+  sessionId: string;
+  source: 'discord';
+}
+
 export interface TerminalSessionRenameRequest {
   sessionId: string;
   title: string;
@@ -307,6 +312,7 @@ export interface TerminalApi {
   onSessionUpdated(listener: (session: TerminalSessionSummary) => void): () => void;
   onSessionData(listener: (event: TerminalSessionDataEvent) => void): () => void;
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void;
+  onSessionActivated(listener: (event: TerminalSessionActivatedEvent) => void): () => void;
   onAppLogEntry(listener: (entry: AppLogEntry) => void): () => void;
   updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings>;
   publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void>;

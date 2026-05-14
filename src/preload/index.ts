@@ -11,6 +11,7 @@ import type {
   TerminalInputLockUpdate,
   TerminalRedrawJiggleRequest,
   TerminalSendInputRequest,
+  TerminalSessionActivatedEvent,
   TerminalSessionDataEvent,
   TerminalSessionExitEvent,
   TerminalSessionRenameRequest,
@@ -106,6 +107,9 @@ const api: TerminalApi = {
   },
   onSessionExit(listener: (event: TerminalSessionExitEvent) => void): () => void {
     return subscribe('terminal:session-exit', listener);
+  },
+  onSessionActivated(listener: (event: TerminalSessionActivatedEvent) => void): () => void {
+    return subscribe('terminal:session-activated', listener);
   },
   onAppLogEntry(listener: (entry: AppLogEntry) => void): () => void {
     return subscribe('terminal:app-log-entry', listener);

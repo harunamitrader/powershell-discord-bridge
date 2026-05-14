@@ -195,11 +195,17 @@ npm run setup:shortcuts
 - `!autoscreenshoton`: 各返信完了後の自動スクリーンショット送信を ON
 - `!autoscreenshotoff`: 各返信完了後の自動スクリーンショット送信を OFF
 - `!autoscreenshot`: 現在の ON/OFF 状態を確認
+- `!cols`: 現在の bridge cols を確認
+- `!cols 100`: bridge cols を変更
+- `!rows`: 現在の bridge rows を確認
+- `!rows 50`: bridge rows を変更
 - `!hardtimeout`: 現在の hard timeout を確認
 - `!hardtimeoutunlimited` / `!hardtimeoutoff`: hard timeout を無制限に変更
 - `!replyformat`: 現在の Discord 返信形式を確認
 - `!replyformatcommand`: Discord 返信形式を code block に変更
 - `!replyformattext`: Discord 返信形式を plain text に変更
+
+`!cols` は `40-400`、`!rows` は `15-120` の範囲だけ受け付けます。範囲外や整数でない値を送った場合は、設定を変えずにエラーメッセージを返します。
 
 通常メッセージに **Discord 添付ファイル** を付けた場合は、添付を `AppData\Roaming\...\discord-bridge\incoming-files\...` に保存したうえで、次のようなコメントブロックを本文先頭に付けて terminal へ送ります。
 

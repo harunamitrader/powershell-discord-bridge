@@ -11,7 +11,13 @@ import type {
   TerminalSlotSettingsUpdate,
   TerminalSlotSettingsUpdateResult
 } from '../../shared/terminal';
-import { PreferencesStore } from '../app/preferencesStore';
+import {
+  MAX_BRIDGE_COLS,
+  MAX_BRIDGE_ROWS,
+  MIN_BRIDGE_COLS,
+  MIN_BRIDGE_ROWS,
+  PreferencesStore
+} from '../app/preferencesStore';
 import {
   ChannelSessionRegistry,
   type BridgeRequestRecord,
@@ -65,6 +71,8 @@ const HELP_REPLY = [
   '!autoscreenshot',
   '!autoscreenshoton',
   '!autoscreenshotoff',
+  `!cols / !cols N (${MIN_BRIDGE_COLS}-${MAX_BRIDGE_COLS})`,
+  `!rows / !rows N (${MIN_BRIDGE_ROWS}-${MAX_BRIDGE_ROWS})`,
   '!hardtimeout',
   '!hardtimeoutunlimited',
   '!replyformat',
@@ -105,6 +113,8 @@ type ParsedBridgeMessage =
   | { kind: 'stop' }
   | { kind: 'force-stop' }
   | { kind: 'settings'; setting: 'auto-screenshot'; value?: boolean }
+  | { kind: 'settings'; setting: 'bridge-cols'; value?: number; error?: string }
+  | { kind: 'settings'; setting: 'bridge-rows'; value?: number; error?: string }
   | { kind: 'settings'; setting: 'hard-timeout'; value?: number | null }
   | { kind: 'settings'; setting: 'reply-format'; value?: 'command' | 'plain-text' }
   | { kind: 'screenshot'; expectOutput: false }
@@ -128,6 +138,7 @@ export class DiscordBridgeService {
   private client?: Client;
   private readonly requestContexts = new Map<string, RequestContext>();
   private readonly abortingChannels = new Set<string>();
+  private readonly sessionActivatedListeners = new Set<(event: { sessionId: string; source: 'discord' }) => void>();
   private readonly replyFormatter: DiscordReplyFormatter;
   private readonly attachmentService: DiscordAttachmentService;
 
@@ -193,6 +204,13 @@ export class DiscordBridgeService {
     this.client = undefined;
     this.requestContexts.clear();
     this.abortingChannels.clear();
+  }
+
+  onSessionActivated(listener: (event: { sessionId: string; source: 'discord' }) => void): () => void {
+    this.sessionActivatedListeners.add(listener);
+    return () => {
+      this.sessionActivatedListeners.delete(listener);
+    };
   }
 
   async ensureStartupBindings(): Promise<void> {
@@ -306,6 +324,11 @@ export class DiscordBridgeService {
       return;
     }
 
+    const binding = this.channelSessionRegistry.getBinding(message.channelId);
+    if (binding && shouldActivateTerminalForMessage(parsed)) {
+      this.emitSessionActivated(binding.sessionId);
+    }
+
     if (parsed.kind === 'stop') {
       await this.handleStopCommand(message);
       return;
@@ -336,7 +359,6 @@ export class DiscordBridgeService {
       return;
     }
 
-    const binding = this.channelSessionRegistry.getBinding(message.channelId);
     if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed) && !attachmentBatch) {
       await this.handleBusyPassthroughMessage(message, binding.sessionId, parsed);
       return;
@@ -529,6 +551,12 @@ export class DiscordBridgeService {
     parsed: Extract<ParsedBridgeMessage, { kind: 'settings' }>
   ): Promise<void> {
     const current = this.preferencesStore.getBridgeSettings();
+    if ('error' in parsed && parsed.error) {
+      await this.tryAddReaction(message, REACTION_REJECTED);
+      await this.sendReplies(message, this.formatReplyText(parsed.error));
+      return;
+    }
+
     if (parsed.setting === 'auto-screenshot') {
       const nextValue = parsed.value;
       if (nextValue === undefined) {
@@ -542,6 +570,44 @@ export class DiscordBridgeService {
       });
       await this.tryAddReaction(message, REACTION_SUCCESS);
       await this.sendReplies(message, this.formatReplyText(updated.autoScreenshotOnReply ? AUTO_SCREENSHOT_ENABLED_REPLY : AUTO_SCREENSHOT_DISABLED_REPLY));
+      return;
+    }
+
+    if (parsed.setting === 'bridge-cols') {
+      const nextValue = parsed.value;
+      if (nextValue === undefined) {
+        await this.tryAddReaction(message, REACTION_SUCCESS);
+        await this.sendReplies(message, this.formatReplyText(`[bridge cols: ${current.bridgeDimensions.cols}]`));
+        return;
+      }
+
+      const updated = this.preferencesStore.setBridgeSettings({
+        bridgeDimensions: {
+          cols: nextValue
+        }
+      });
+      this.terminalSessionManager.applyBridgeSettings();
+      await this.tryAddReaction(message, REACTION_SUCCESS);
+      await this.sendReplies(message, this.formatReplyText(`[bridge cols: ${updated.bridgeDimensions.cols}]`));
+      return;
+    }
+
+    if (parsed.setting === 'bridge-rows') {
+      const nextValue = parsed.value;
+      if (nextValue === undefined) {
+        await this.tryAddReaction(message, REACTION_SUCCESS);
+        await this.sendReplies(message, this.formatReplyText(`[bridge rows: ${current.bridgeDimensions.rows}]`));
+        return;
+      }
+
+      const updated = this.preferencesStore.setBridgeSettings({
+        bridgeDimensions: {
+          rows: nextValue
+        }
+      });
+      this.terminalSessionManager.applyBridgeSettings();
+      await this.tryAddReaction(message, REACTION_SUCCESS);
+      await this.sendReplies(message, this.formatReplyText(`[bridge rows: ${updated.bridgeDimensions.rows}]`));
       return;
     }
 
@@ -1000,6 +1066,15 @@ export class DiscordBridgeService {
     throw new Error('Discord channel auto-creation requires ALLOW_GUILD_ID when the bot belongs to multiple guilds.');
   }
 
+  private emitSessionActivated(sessionId: string): void {
+    for (const listener of this.sessionActivatedListeners) {
+      listener({
+        sessionId,
+        source: 'discord'
+      });
+    }
+  }
+
 }
 
 export function parseBridgeMessage(content: string, botUserId?: string): ParsedBridgeMessage {
@@ -1142,12 +1217,110 @@ function parseReplyFormatCommand(content: string): Extract<ParsedBridgeMessage, 
     case '[[terminal:reply-format:text]]':
       return { kind: 'settings', setting: 'reply-format', value: 'plain-text' };
     default:
-      return null;
+      return parseBridgeDimensionCommand(content);
   }
+}
+
+function parseBridgeDimensionCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'settings' }> | null {
+  return (
+    parseBridgeDimensionSettingCommand(content, {
+      bangCommand: '!cols',
+      queryCommand: '[[terminal:bridge-cols]]',
+      valuePrefix: '[[terminal:bridge-cols:',
+      setting: 'bridge-cols',
+      min: MIN_BRIDGE_COLS,
+      max: MAX_BRIDGE_COLS
+    }) ??
+    parseBridgeDimensionSettingCommand(content, {
+      bangCommand: '!rows',
+      queryCommand: '[[terminal:bridge-rows]]',
+      valuePrefix: '[[terminal:bridge-rows:',
+      setting: 'bridge-rows',
+      min: MIN_BRIDGE_ROWS,
+      max: MAX_BRIDGE_ROWS
+    })
+  );
+}
+
+function parseBridgeDimensionSettingCommand(
+  content: string,
+  options: {
+    bangCommand: '!cols' | '!rows';
+    queryCommand: '[[terminal:bridge-cols]]' | '[[terminal:bridge-rows]]';
+    valuePrefix: '[[terminal:bridge-cols:' | '[[terminal:bridge-rows:';
+    setting: 'bridge-cols' | 'bridge-rows';
+    min: number;
+    max: number;
+  }
+): Extract<ParsedBridgeMessage, { kind: 'settings' }> | null {
+  if (content === options.queryCommand || content === options.bangCommand) {
+    return { kind: 'settings', setting: options.setting };
+  }
+
+  const bangMatch = content.match(new RegExp(`^${escapeRegExp(options.bangCommand)}\\s+(.+)$`));
+  if (bangMatch) {
+    return parseBridgeDimensionValue(options.setting, bangMatch[1]?.trim() ?? '', options.min, options.max);
+  }
+
+  if (content.startsWith(options.valuePrefix) && content.endsWith(']]')) {
+    return parseBridgeDimensionValue(
+      options.setting,
+      content.slice(options.valuePrefix.length, -2).trim(),
+      options.min,
+      options.max
+    );
+  }
+
+  return null;
+}
+
+function parseBridgeDimensionValue(
+  setting: 'bridge-cols' | 'bridge-rows',
+  valueText: string,
+  min: number,
+  max: number
+): Extract<ParsedBridgeMessage, { kind: 'settings' }> {
+  if (!/^\d+$/.test(valueText)) {
+    return {
+      kind: 'settings',
+      setting,
+      error: `[${formatBridgeDimensionLabel(setting)}: enter an integer between ${min} and ${max}]`
+    };
+  }
+
+  const value = Number(valueText);
+  if (value < min || value > max) {
+    return {
+      kind: 'settings',
+      setting,
+      error: `[${formatBridgeDimensionLabel(setting)}: value must be between ${min} and ${max}]`
+    };
+  }
+
+  return {
+    kind: 'settings',
+    setting,
+    value
+  };
 }
 
 function isBusyPassthroughMessage(parsed: ParsedBridgeMessage): parsed is BusyPassthroughMessage {
   return parsed.kind === 'text' || parsed.kind === 'control';
+}
+
+function shouldActivateTerminalForMessage(parsed: ParsedBridgeMessage): boolean {
+  switch (parsed.kind) {
+    case 'text':
+    case 'control':
+    case 'screenshot':
+    case 'window-screenshot':
+    case 'stop':
+    case 'force-stop':
+    case 'restart-terminal':
+      return true;
+    default:
+      return false;
+  }
 }
 
 function mapDiscordAttachment(attachment: Attachment): DiscordAttachmentInput {
@@ -1242,6 +1415,10 @@ function formatHardTimeout(value: number | null): string {
 
 function formatReplyFormat(value: 'command' | 'plain-text'): string {
   return value === 'plain-text' ? 'plain text' : 'command';
+}
+
+function formatBridgeDimensionLabel(value: 'bridge-cols' | 'bridge-rows'): string {
+  return value === 'bridge-cols' ? 'bridge cols' : 'bridge rows';
 }
 
 function toErrorMessage(error: unknown): string {

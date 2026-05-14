@@ -68,6 +68,9 @@ export function registerIpc(options: RegisterIpcOptions): void {
   const handleSessionExit = (event: TerminalSessionExitEvent) => {
     sendToRenderer('terminal:session-exit', event);
   };
+  const handleSessionActivated = (event: { sessionId: string; source: 'discord' }) => {
+    sendToRenderer('terminal:session-activated', event);
+  };
   const handleAppLogEntry = (entry: { id: number; timestamp: string; stream: 'stdout' | 'stderr'; text: string }) => {
     sendToRenderer('terminal:app-log-entry', entry);
   };
@@ -75,12 +78,14 @@ export function registerIpc(options: RegisterIpcOptions): void {
   terminalSessionManager.on('session-updated', handleSessionUpdated);
   terminalSessionManager.on('session-data', handleSessionData);
   terminalSessionManager.on('session-exit', handleSessionExit);
+  const unsubscribeSessionActivated = discordBridgeService.onSessionActivated(handleSessionActivated);
   const unsubscribeAppLogEntry = appLogStore.onEntry(handleAppLogEntry);
 
   window.once('closed', () => {
     terminalSessionManager.off('session-updated', handleSessionUpdated);
     terminalSessionManager.off('session-data', handleSessionData);
     terminalSessionManager.off('session-exit', handleSessionExit);
+    unsubscribeSessionActivated();
     unsubscribeAppLogEntry();
   });
 

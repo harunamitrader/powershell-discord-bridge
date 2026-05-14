@@ -8,6 +8,7 @@
 
 - `!rst` / `!rsa` / `!ss` / `!wss` の省略コマンド
 - `!hardtimeout`, `!hardtimeoutunlimited`, `!hardtimeoutoff` コマンド
+- `!cols`, `!rows` で bridge dimensions を確認・変更するコマンド
 - `!replyformat`, `!replyformatcommand`, `!replyformattext` コマンド
 - `!/command` と `!noenterTEXT` の入力モード切り替え
 - Discord 返信形式の `code block` / `plain text` 切り替え
