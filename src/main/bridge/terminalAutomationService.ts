@@ -172,6 +172,10 @@ export class TerminalAutomationService {
     const baselineRawOffset = beforeRawTranscript.length;
 
     if (request.kind === 'text') {
+      if (beforeSnapshot) {
+        await wait(PRE_TEXT_INPUT_SNAPSHOT_DELAY_MS);
+      }
+
       await this.sendInput({
         sessionId: request.sessionId,
         content: request.content ?? '',
@@ -180,7 +184,13 @@ export class TerminalAutomationService {
       });
     } else {
       const key = request.key ?? 'enter';
-      this.terminalSessionManager.sendKey(request.sessionId, key, 'bridge');
+      await this.sendControlKey(
+        request.sessionId,
+        key,
+        request.repeatCount ?? 1,
+        request.repeatDelayMs ?? REPEATED_CONTROL_KEY_DELAY_MS,
+        'bridge'
+      );
     }
 
     const completion = await this.waitForCompletion({
@@ -207,10 +217,10 @@ export class TerminalAutomationService {
       tailChars: this.config.diff.tailChars,
       fallbackLines: this.config.diff.fallbackLines
     });
-    const replyResult = sanitizeReplyText({
+  const replyResult = sanitizeReplyText({
       beforeText: beforeSnapshot?.screenText,
       afterText: diffAfterSnapshot.screenText,
-      fallbackText: diff.source === 'raw-output' ? diffAfterSnapshot.screenText : diff.diffText,
+      fallbackText: diff.diffText,
       submittedText: request.kind === 'text' ? request.content : undefined
     });
     const replyText = replyResult.usedFallback
@@ -238,8 +248,11 @@ export class TerminalAutomationService {
         sessionId,
         shrinkCols: 1,
         waitAfterShrinkMs: 500,
-        waitAfterRestoreMs: 1000
+        waitAfterRestoreMs: reason === 'before-send' ? BEFORE_SEND_REDRAW_RESTORE_DELAY_MS : 1000
       });
+      if (reason === 'before-send') {
+        await wait(BEFORE_SEND_POST_REDRAW_DELAY_MS);
+      }
     }
 
     const snapshot = await this.terminalSessionManager.getBufferSnapshot(sessionId, reason);
@@ -260,8 +273,20 @@ export class TerminalAutomationService {
     this.abortRequestedSessions.delete(sessionId);
   }
 
-  sendControlKey(sessionId: string, key: TerminalControlKey, source: TerminalWriteSource = 'bridge'): void {
-    this.terminalSessionManager.sendKey(sessionId, key, source);
+  async sendControlKey(
+    sessionId: string,
+    key: TerminalControlKey,
+    repeatCount = 1,
+    repeatDelayMs = REPEATED_CONTROL_KEY_DELAY_MS,
+    source: TerminalWriteSource = 'bridge'
+  ): Promise<void> {
+    const safeRepeatCount = Math.max(1, Math.trunc(repeatCount));
+    for (let index = 0; index < safeRepeatCount; index += 1) {
+      this.terminalSessionManager.sendKey(sessionId, key, source);
+      if (index + 1 < safeRepeatCount) {
+        await wait(repeatDelayMs);
+      }
+    }
   }
 
   setInputLock(sessionId: string, locked: boolean) {
@@ -353,7 +378,10 @@ function isSubmittedTextPending(screenText: string, submittedTextProbe: string |
 }
 
 const GEMINI_PROMPT_MARKERS = ['Type your message or @path/to/file'];
-const TEXT_SUBMIT_ENTER_DELAY_MS = 75;
+const BEFORE_SEND_REDRAW_RESTORE_DELAY_MS = 1500;
+const BEFORE_SEND_POST_REDRAW_DELAY_MS = 500;
+const PRE_TEXT_INPUT_SNAPSHOT_DELAY_MS = 500;
+const TEXT_SUBMIT_ENTER_DELAY_MS = 500;
 
 function extractPendingInputCandidates(screenText: string): string[] {
   const lines = screenText.split('\n');
@@ -412,7 +440,7 @@ function sanitizeReplyText(options: {
 
   const fallbackText = normalizeTerminalText(options.fallbackText).trim() || '(no diff)';
   return {
-    text: compressDecorativeRuns(fallbackText),
+    text: compressDecorativeRuns(limitFallbackReplyText(fallbackText)),
     usedFallback: true
   };
 }
@@ -523,6 +551,14 @@ function extractTailDiffFromText(beforeText?: string, afterText?: string): strin
   return extractComparableLineDiff(beforeText, afterText, REPLY_COMPARISON_TAIL_CHARS);
 }
 
+function limitFallbackReplyText(text: string): string {
+  if (text.length <= REPLY_FALLBACK_MAX_CHARS) {
+    return text;
+  }
+
+  return text.slice(Math.max(0, text.length - REPLY_FALLBACK_MAX_CHARS)).trimStart();
+}
+
 function compressDecorativeRuns(text: string): string {
   let result = '';
   let previousCharacter: string | undefined;
@@ -554,3 +590,5 @@ function wait(durationMs: number): Promise<void> {
   });
 }
 const REPLY_COMPARISON_TAIL_CHARS = 20000;
+const REPLY_FALLBACK_MAX_CHARS = 5000;
+const REPEATED_CONTROL_KEY_DELAY_MS = 100;

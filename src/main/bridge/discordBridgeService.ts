@@ -56,6 +56,9 @@ const AUTO_SCREENSHOT_STATUS_OFF_REPLY = '[auto screenshot after reply: off]';
 const AUTO_SCREENSHOT_ATTACHMENT_REPLY = '[auto screenshot after completion: terminal]';
 const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
 const ATTACHMENTS_UNSUPPORTED_REPLY = '[attachments rejected: attachments are only supported on regular text messages]';
+const REPEATED_ARROW_MIN_COUNT = 1;
+const REPEATED_ARROW_MAX_COUNT = 20;
+const REPEATED_ARROW_DELAY_MS = 100;
 const HELP_REPLY = [
   'Bridge commands:',
   '!help',
@@ -64,6 +67,8 @@ const HELP_REPLY = [
   '!stop -> send Ctrl+C and request stop',
   '!forcestop -> kill terminal and auto restart',
   '!enter',
+  `!up / !up N / !upN (${REPEATED_ARROW_MIN_COUNT}-${REPEATED_ARROW_MAX_COUNT})`,
+  `!down / !down N / !downN (${REPEATED_ARROW_MIN_COUNT}-${REPEATED_ARROW_MAX_COUNT})`,
   '!esc',
   '!ctrlc / !ctrl-c',
   '!screenshot / !ss',
@@ -107,6 +112,7 @@ interface RequestContext {
 
 type ParsedBridgeMessage =
   | { kind: 'ignore' }
+  | { kind: 'error'; message: string }
   | { kind: 'help' }
   | { kind: 'restart-terminal' }
   | { kind: 'restart-app' }
@@ -119,7 +125,7 @@ type ParsedBridgeMessage =
   | { kind: 'settings'; setting: 'reply-format'; value?: 'command' | 'plain-text' }
   | { kind: 'screenshot'; expectOutput: false }
   | { kind: 'window-screenshot'; expectOutput: false }
-  | { kind: 'control'; key: TerminalControlKey; expectOutput: boolean }
+  | { kind: 'control'; key: TerminalControlKey; repeatCount?: number; expectOutput: boolean }
   | { kind: 'text'; content: string; expectOutput: boolean; appendEnter?: boolean };
 
 type BusyPassthroughMessage =
@@ -324,6 +330,12 @@ export class DiscordBridgeService {
       return;
     }
 
+    if (parsed.kind === 'error') {
+      await this.tryAddReaction(message, REACTION_REJECTED);
+      await this.sendReplies(message, this.formatReplyText(parsed.message));
+      return;
+    }
+
     const binding = this.channelSessionRegistry.getBinding(message.channelId);
     if (binding && shouldActivateTerminalForMessage(parsed)) {
       this.emitSessionActivated(binding.sessionId);
@@ -373,6 +385,7 @@ export class DiscordBridgeService {
       attachmentBatch,
       appendEnter: parsed.kind === 'text' ? parsed.appendEnter : undefined,
       controlKey: parsed.kind === 'control' ? parsed.key : undefined,
+      controlRepeatCount: parsed.kind === 'control' ? parsed.repeatCount : undefined,
       expectOutput: parsed.expectOutput
     });
 
@@ -492,7 +505,13 @@ export class DiscordBridgeService {
           source: 'bridge'
         });
       } else {
-        this.terminalAutomationService.sendControlKey(sessionId, parsed.key, 'bridge');
+        await this.terminalAutomationService.sendControlKey(
+          sessionId,
+          parsed.key,
+          parsed.repeatCount ?? 1,
+          REPEATED_ARROW_DELAY_MS,
+          'bridge'
+        );
       }
 
       this.persistProcessingLog({
@@ -737,6 +756,8 @@ export class DiscordBridgeService {
           sessionId,
           kind: 'control',
           key: request.controlKey ?? 'enter',
+          repeatCount: request.controlRepeatCount,
+          repeatDelayMs: REPEATED_ARROW_DELAY_MS,
           expectOutput: request.expectOutput
         })
       );
@@ -1081,6 +1102,10 @@ export function parseBridgeMessage(content: string, botUserId?: string): ParsedB
   const normalizedForCommand = stripBotMentions(content, botUserId).replace(/\r\n/g, '\n');
   const trimmedForCommand = normalizedForCommand.trim();
   const normalizedLower = trimmedForCommand.toLowerCase();
+  const arrowCommand = parseRepeatedArrowCommand(normalizedLower);
+  if (arrowCommand) {
+    return arrowCommand;
+  }
   const autoScreenshotCommand = parseAutoScreenshotCommand(normalizedLower);
   if (autoScreenshotCommand) {
     return autoScreenshotCommand;
@@ -1158,6 +1183,69 @@ function parseNoEnterCommand(content: string): Extract<ParsedBridgeMessage, { ki
     content: leftTrimmed.slice(prefix.length),
     appendEnter: false,
     expectOutput: false
+  };
+}
+
+function parseRepeatedArrowCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'control' | 'error' }> | null {
+  if (content === '!up' || content === '[[terminal:up]]') {
+    return { kind: 'control', key: 'up', repeatCount: 1, expectOutput: false };
+  }
+
+  if (content === '!down' || content === '[[terminal:down]]') {
+    return { kind: 'control', key: 'down', repeatCount: 1, expectOutput: false };
+  }
+
+  const bracketMatch = content.match(/^\[\[terminal:(up|down):(.+)\]\]$/);
+  if (bracketMatch) {
+    return parseArrowCountCommand(bracketMatch[1] as 'up' | 'down', bracketMatch[2]?.trim() ?? '');
+  }
+
+  const spacedMatch = content.match(/^!(up|down)\s+(.+)$/);
+  if (spacedMatch) {
+    return parseArrowCountCommand(spacedMatch[1] as 'up' | 'down', spacedMatch[2]?.trim() ?? '');
+  }
+
+  const compactMatch = content.match(/^!(up|down)(\d+)$/);
+  if (compactMatch) {
+    return parseArrowCountCommand(compactMatch[1] as 'up' | 'down', compactMatch[2] ?? '');
+  }
+
+  if (content.startsWith('!up ') || content.startsWith('!down ') || content.startsWith('[[terminal:up:') || content.startsWith('[[terminal:down:')) {
+    const key = content.includes('down') ? 'down' : 'up';
+    return buildArrowCountError(key, `[${key}: count must be an integer between ${REPEATED_ARROW_MIN_COUNT} and ${REPEATED_ARROW_MAX_COUNT}]`);
+  }
+
+  return null;
+}
+
+function parseArrowCountCommand(
+  key: 'up' | 'down',
+  countText: string
+): Extract<ParsedBridgeMessage, { kind: 'control' | 'error' }> {
+  if (!/^\d+$/.test(countText)) {
+    return buildArrowCountError(key, `[${key}: count must be an integer between ${REPEATED_ARROW_MIN_COUNT} and ${REPEATED_ARROW_MAX_COUNT}]`);
+  }
+
+  const count = Number(countText);
+  if (count < REPEATED_ARROW_MIN_COUNT || count > REPEATED_ARROW_MAX_COUNT) {
+    return buildArrowCountError(key, `[${key}: count must be between ${REPEATED_ARROW_MIN_COUNT} and ${REPEATED_ARROW_MAX_COUNT}]`);
+  }
+
+  return {
+    kind: 'control',
+    key,
+    repeatCount: count,
+    expectOutput: false
+  };
+}
+
+function buildArrowCountError(
+  _key: 'up' | 'down',
+  message: string
+): Extract<ParsedBridgeMessage, { kind: 'error' }> {
+  return {
+    kind: 'error',
+    message
   };
 }
 

@@ -43,7 +43,8 @@ export function extractComparableLineDiff(beforeText: string | undefined, afterT
     return '';
   }
 
-  return sliceLineRange(afterLines, afterComparable, diffRange.startIndex, diffRange.endIndex);
+  const anchoredStartIndex = findMiddleAnchorStartIndex(beforeComparable.text, afterComparable.text, diffRange);
+  return sliceLineRange(afterLines, afterComparable, anchoredStartIndex, diffRange.endIndex);
 }
 
 export function toComparableText(text: string): string {
@@ -126,6 +127,58 @@ function findComparableDiffRange(beforeText: string, afterText: string): { start
   };
 }
 
+function findMiddleAnchorStartIndex(
+  beforeText: string,
+  afterText: string,
+  diffRange: { startIndex: number; endIndex: number }
+): number {
+  const latestAnchorEndIndex = findLatestUniqueAnchorEndIndex(beforeText, afterText, diffRange, COMPARABLE_MIDDLE_ANCHOR_CHARS);
+  if (latestAnchorEndIndex === null || latestAnchorEndIndex <= diffRange.startIndex) {
+    return diffRange.startIndex;
+  }
+
+  return latestAnchorEndIndex;
+}
+
+function findLatestUniqueAnchorEndIndex(
+  beforeText: string,
+  afterText: string,
+  diffRange: { startIndex: number; endIndex: number },
+  anchorLength: number
+): number | null {
+  if (anchorLength <= 0 || beforeText.length < anchorLength || afterText.length < anchorLength) {
+    return null;
+  }
+
+  const latestAnchorStart = diffRange.endIndex - anchorLength + 1;
+  if (latestAnchorStart < diffRange.startIndex) {
+    return null;
+  }
+
+  const beforeWindowCounts = buildWindowCounts(beforeText, anchorLength);
+  const afterWindowCounts = buildWindowCounts(afterText, anchorLength);
+  for (let anchorStart = latestAnchorStart; anchorStart >= diffRange.startIndex; anchorStart -= 1) {
+    const candidate = afterText.slice(anchorStart, anchorStart + anchorLength);
+    const beforeCount = beforeWindowCounts.get(candidate) ?? 0;
+    const afterCount = afterWindowCounts.get(candidate) ?? 0;
+    if (beforeCount === 1 && afterCount === 1) {
+      return anchorStart + anchorLength;
+    }
+  }
+
+  return null;
+}
+
+function buildWindowCounts(text: string, windowLength: number): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (let index = 0; index <= text.length - windowLength; index += 1) {
+    const key = text.slice(index, index + windowLength);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
 function sliceLineRange(lines: string[], stream: ComparableStream, startIndex: number, endIndex: number): string {
   if (startIndex > endIndex) {
     return '';
@@ -139,3 +192,5 @@ function sliceLineRange(lines: string[], stream: ComparableStream, startIndex: n
 
   return lines.slice(startLineIndex, endLineIndex + 1).join('\n');
 }
+
+const COMPARABLE_MIDDLE_ANCHOR_CHARS = 500;

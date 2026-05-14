@@ -2,7 +2,7 @@ export type SessionStatus = 'starting' | 'ready' | 'exited';
 export type TerminalSessionMode = 'desktop' | 'bridge';
 export type TerminalResizeMode = 'fit' | 'fixed';
 export type TerminalWriteSource = 'local' | 'bridge' | 'system';
-export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter';
+export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter' | 'up' | 'down';
 export type TerminalSnapshotReason = 'before-send' | 'after-complete' | 'manual';
 export type TerminalSlotId = 1 | 2 | 3 | 4;
 export type BridgeReplyFormat = 'command' | 'plain-text';
@@ -133,6 +133,8 @@ export interface TerminalInputLockUpdate {
 export interface TerminalControlRequest {
   sessionId: string;
   key: TerminalControlKey;
+  repeatCount?: number;
+  repeatDelayMs?: number;
   source?: TerminalWriteSource;
 }
 
@@ -237,6 +239,8 @@ export interface TerminalAutomationTurnRequest {
   content?: string;
   appendEnter?: boolean;
   key?: TerminalControlKey;
+  repeatCount?: number;
+  repeatDelayMs?: number;
   expectOutput?: boolean;
   captureBefore?: boolean;
   captureAfter?: boolean;

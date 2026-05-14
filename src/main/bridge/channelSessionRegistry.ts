@@ -39,6 +39,7 @@ export interface BridgeRequestRecord {
   attachmentBatch?: SavedDiscordAttachmentBatch;
   appendEnter?: boolean;
   controlKey?: TerminalControlKey;
+  controlRepeatCount?: number;
   expectOutput: boolean;
 }
 
@@ -51,6 +52,7 @@ export interface EnqueueRequestInput {
   attachmentBatch?: SavedDiscordAttachmentBatch;
   appendEnter?: boolean;
   controlKey?: TerminalControlKey;
+  controlRepeatCount?: number;
   expectOutput?: boolean;
 }
 
@@ -358,6 +360,7 @@ function createRequest(input: EnqueueRequestInput): BridgeRequestRecord {
     attachmentBatch: input.attachmentBatch,
     appendEnter: input.appendEnter,
     controlKey: input.controlKey,
+    controlRepeatCount: input.controlRepeatCount,
     expectOutput: input.expectOutput ?? input.kind === 'text'
   };
 }

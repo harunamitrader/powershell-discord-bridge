@@ -184,6 +184,8 @@ npm run setup:shortcuts
 - `!/command`: `/command` をそのまま Enter 付きで送る
 - `!noenterTEXT`: `TEXT` を Enter なしで送る（出力待ちはしない）
 - `!enter`: Enter だけ送る
+- `!up` / `!up 3` / `!up3`: 上矢印キーを送る（回数は 1-20、既定は 1、100ms 間隔）
+- `!down` / `!down 3` / `!down3`: 下矢印キーを送る（回数は 1-20、既定は 1、100ms 間隔）
 - `!ctrlc`: Ctrl+C を送る
 - `!esc`: Escape を送る
 - `!stop`: Ctrl+C を送って進行中のリクエスト停止を試みる（止まらない場合は Restart を使う）
