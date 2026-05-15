@@ -1,11 +1,11 @@
 import type { BrowserWindow } from 'electron';
 
-export async function captureWindowScreenshotPng(window: BrowserWindow): Promise<Buffer> {
+export async function captureWindowScreenshotPng(window: BrowserWindow, captureDelayMs: number): Promise<Buffer> {
   if (window.isDestroyed()) {
     throw new Error('Main window is not available for screenshot capture.');
   }
 
-  await wait(100);
+  await wait(captureDelayMs);
   const image = await window.webContents.capturePage();
   if (image.isEmpty()) {
     throw new Error('Failed to capture app window screenshot.');

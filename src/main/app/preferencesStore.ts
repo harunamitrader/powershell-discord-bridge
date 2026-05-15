@@ -1,4 +1,4 @@
-import type { BridgeReplyFormat } from '../../shared/terminal';
+import type { BridgeReplyFormat, BridgeSettings, BridgeSettingsUpdate } from '../../shared/terminal';
 import { app, Rectangle } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -18,6 +18,29 @@ interface StoredPreferences {
       cols?: number;
       rows?: number;
     };
+    timing?: {
+      redrawWaitAfterShrinkMs?: number;
+      beforeSendRedrawRestoreMs?: number;
+      afterCompleteRedrawRestoreMs?: number;
+      beforeSendPostRedrawDelayMs?: number;
+      preTextInputSnapshotDelayMs?: number;
+      textSubmitEnterDelayMs?: number;
+      repeatedControlKeyDelayMs?: number;
+      completionSettleMs?: number;
+      completionNoOutputTimeoutMs?: number;
+      completionPollIntervalMs?: number;
+      completionStablePollCount?: number;
+      manualRedrawWaitAfterShrinkMs?: number;
+      manualRedrawWaitAfterRestoreMs?: number;
+      liveViewSnapshotDebounceMs?: number;
+      snapshotMirrorFlushTimeoutMs?: number;
+      windowScreenshotCaptureDelayMs?: number;
+      terminalScreenshotResizeSettleMs?: number;
+      terminalScreenshotPollIntervalMs?: number;
+      terminalScreenshotReadyTimeoutMs?: number;
+      appRestartDelayMs?: number;
+      attachmentDownloadTimeoutMs?: number;
+    };
   };
 }
 
@@ -36,12 +59,39 @@ const DEFAULT_BRIDGE_SETTINGS = {
   bridgeDimensions: {
     cols: 100,
     rows: 50
+  },
+  timing: {
+    redrawWaitAfterShrinkMs: 500,
+    beforeSendRedrawRestoreMs: 1500,
+    afterCompleteRedrawRestoreMs: 1000,
+    beforeSendPostRedrawDelayMs: 500,
+    preTextInputSnapshotDelayMs: 500,
+    textSubmitEnterDelayMs: 500,
+    repeatedControlKeyDelayMs: 100,
+    completionSettleMs: 2000,
+    completionNoOutputTimeoutMs: 3000,
+    completionPollIntervalMs: 500,
+    completionStablePollCount: 3,
+    manualRedrawWaitAfterShrinkMs: 150,
+    manualRedrawWaitAfterRestoreMs: 250,
+    liveViewSnapshotDebounceMs: 120,
+    snapshotMirrorFlushTimeoutMs: 2000,
+    windowScreenshotCaptureDelayMs: 100,
+    terminalScreenshotResizeSettleMs: 120,
+    terminalScreenshotPollIntervalMs: 50,
+    terminalScreenshotReadyTimeoutMs: 10000,
+    appRestartDelayMs: 500,
+    attachmentDownloadTimeoutMs: 30000
   }
 } as const;
 export const MIN_BRIDGE_COLS = 40;
 export const MIN_BRIDGE_ROWS = 15;
 export const MAX_BRIDGE_COLS = 400;
 export const MAX_BRIDGE_ROWS = 120;
+export const MIN_TIMING_DELAY_MS = 0;
+export const MAX_TIMING_DELAY_MS = 120000;
+export const MIN_TIMING_COUNT = 1;
+export const MAX_TIMING_COUNT = 20;
 const MIN_SOFT_TIMEOUT_MS = 1000;
 const MAX_SOFT_TIMEOUT_MS = 300000;
 const MIN_HARD_TIMEOUT_MS = 5000;
@@ -125,13 +175,7 @@ export class PreferencesStore {
     this.save();
   }
 
-  getBridgeSettings(): {
-    autoScreenshotOnReply: boolean;
-    replyFormat: BridgeReplyFormat;
-    softTimeoutMs: number;
-    hardTimeoutMs: number | null;
-    bridgeDimensions: { cols: number; rows: number };
-  } {
+  getBridgeSettings(): BridgeSettings {
     return {
       autoScreenshotOnReply: this.state.bridgeSettings?.autoScreenshotOnReply ?? DEFAULT_BRIDGE_SETTINGS.autoScreenshotOnReply,
       replyFormat: normalizeBridgeReplyFormat(this.state.bridgeSettings?.replyFormat),
@@ -160,23 +204,139 @@ export class PreferencesStore {
           MAX_BRIDGE_ROWS,
           DEFAULT_BRIDGE_SETTINGS.bridgeDimensions.rows
         )
+      },
+      timing: {
+        redrawWaitAfterShrinkMs: clampInteger(
+          this.state.bridgeSettings?.timing?.redrawWaitAfterShrinkMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.redrawWaitAfterShrinkMs
+        ),
+        beforeSendRedrawRestoreMs: clampInteger(
+          this.state.bridgeSettings?.timing?.beforeSendRedrawRestoreMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.beforeSendRedrawRestoreMs
+        ),
+        afterCompleteRedrawRestoreMs: clampInteger(
+          this.state.bridgeSettings?.timing?.afterCompleteRedrawRestoreMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.afterCompleteRedrawRestoreMs
+        ),
+        beforeSendPostRedrawDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.beforeSendPostRedrawDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.beforeSendPostRedrawDelayMs
+        ),
+        preTextInputSnapshotDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.preTextInputSnapshotDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.preTextInputSnapshotDelayMs
+        ),
+        textSubmitEnterDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.textSubmitEnterDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.textSubmitEnterDelayMs
+        ),
+        repeatedControlKeyDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.repeatedControlKeyDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.repeatedControlKeyDelayMs
+        ),
+        completionSettleMs: clampInteger(
+          this.state.bridgeSettings?.timing?.completionSettleMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.completionSettleMs
+        ),
+        completionNoOutputTimeoutMs: clampInteger(
+          this.state.bridgeSettings?.timing?.completionNoOutputTimeoutMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.completionNoOutputTimeoutMs
+        ),
+        completionPollIntervalMs: clampInteger(
+          this.state.bridgeSettings?.timing?.completionPollIntervalMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.completionPollIntervalMs
+        ),
+        completionStablePollCount: clampInteger(
+          this.state.bridgeSettings?.timing?.completionStablePollCount,
+          MIN_TIMING_COUNT,
+          MAX_TIMING_COUNT,
+          DEFAULT_BRIDGE_SETTINGS.timing.completionStablePollCount
+        ),
+        manualRedrawWaitAfterShrinkMs: clampInteger(
+          this.state.bridgeSettings?.timing?.manualRedrawWaitAfterShrinkMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.manualRedrawWaitAfterShrinkMs
+        ),
+        manualRedrawWaitAfterRestoreMs: clampInteger(
+          this.state.bridgeSettings?.timing?.manualRedrawWaitAfterRestoreMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.manualRedrawWaitAfterRestoreMs
+        ),
+        liveViewSnapshotDebounceMs: clampInteger(
+          this.state.bridgeSettings?.timing?.liveViewSnapshotDebounceMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.liveViewSnapshotDebounceMs
+        ),
+        snapshotMirrorFlushTimeoutMs: clampInteger(
+          this.state.bridgeSettings?.timing?.snapshotMirrorFlushTimeoutMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.snapshotMirrorFlushTimeoutMs
+        ),
+        windowScreenshotCaptureDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.windowScreenshotCaptureDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.windowScreenshotCaptureDelayMs
+        ),
+        terminalScreenshotResizeSettleMs: clampInteger(
+          this.state.bridgeSettings?.timing?.terminalScreenshotResizeSettleMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.terminalScreenshotResizeSettleMs
+        ),
+        terminalScreenshotPollIntervalMs: clampInteger(
+          this.state.bridgeSettings?.timing?.terminalScreenshotPollIntervalMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.terminalScreenshotPollIntervalMs
+        ),
+        terminalScreenshotReadyTimeoutMs: clampInteger(
+          this.state.bridgeSettings?.timing?.terminalScreenshotReadyTimeoutMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.terminalScreenshotReadyTimeoutMs
+        ),
+        appRestartDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.appRestartDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.appRestartDelayMs
+        ),
+        attachmentDownloadTimeoutMs: clampInteger(
+          this.state.bridgeSettings?.timing?.attachmentDownloadTimeoutMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.attachmentDownloadTimeoutMs
+        )
       }
     };
   }
 
-  setBridgeSettings(update: {
-    autoScreenshotOnReply?: boolean;
-    replyFormat?: BridgeReplyFormat;
-    softTimeoutMs?: number;
-    hardTimeoutMs?: number | null;
-    bridgeDimensions?: { cols?: number; rows?: number };
-  }): {
-    autoScreenshotOnReply: boolean;
-    replyFormat: BridgeReplyFormat;
-    softTimeoutMs: number;
-    hardTimeoutMs: number | null;
-    bridgeDimensions: { cols: number; rows: number };
-  } {
+  setBridgeSettings(update: BridgeSettingsUpdate): BridgeSettings {
     this.state.bridgeSettings = {
       ...this.state.bridgeSettings,
       ...(update.autoScreenshotOnReply === undefined
@@ -190,6 +350,14 @@ export class PreferencesStore {
             bridgeDimensions: {
               ...this.state.bridgeSettings?.bridgeDimensions,
               ...update.bridgeDimensions
+            }
+          }
+        : {}),
+      ...(update.timing
+        ? {
+            timing: {
+              ...this.state.bridgeSettings?.timing,
+              ...update.timing
             }
           }
         : {})

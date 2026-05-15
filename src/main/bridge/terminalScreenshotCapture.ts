@@ -3,10 +3,6 @@ import path from 'node:path';
 
 const INITIAL_WINDOW_WIDTH = 1200;
 const INITIAL_WINDOW_HEIGHT = 900;
-const EXPORT_READY_TIMEOUT_MS = 10000;
-const EXPORT_POLL_INTERVAL_MS = 50;
-const RESIZE_SETTLE_MS = 120;
-
 interface ExportWindowState {
   state: 'loading' | 'ready' | 'error';
   error: string;
@@ -22,16 +18,25 @@ interface ExportCaptureRect extends ExportWindowSize {
   y: number;
 }
 
-export async function captureTerminalScreenshotPng(sessionId: string): Promise<Buffer> {
+export interface TerminalScreenshotTimingOptions {
+  readyTimeoutMs: number;
+  pollIntervalMs: number;
+  resizeSettleMs: number;
+}
+
+export async function captureTerminalScreenshotPng(
+  sessionId: string,
+  timing: TerminalScreenshotTimingOptions
+): Promise<Buffer> {
   const window = createExportWindow();
 
   try {
     await loadExportWindow(window, sessionId);
-    await waitForExportReady(window);
+    await waitForExportReady(window, timing);
 
     const size = await getExportWindowSize(window);
     window.setContentSize(size.width, size.height);
-    await wait(RESIZE_SETTLE_MS);
+    await wait(timing.resizeSettleMs);
 
     const captureRect = await getExportCaptureRect(window);
     const image = await window.webContents.capturePage(captureRect);
@@ -88,8 +93,8 @@ async function loadExportWindow(window: BrowserWindow, sessionId: string): Promi
   });
 }
 
-async function waitForExportReady(window: BrowserWindow): Promise<void> {
-  const deadline = Date.now() + EXPORT_READY_TIMEOUT_MS;
+async function waitForExportReady(window: BrowserWindow, timing: TerminalScreenshotTimingOptions): Promise<void> {
+  const deadline = Date.now() + timing.readyTimeoutMs;
   while (Date.now() < deadline) {
     const exportState = await getExportWindowState(window);
     if (exportState.state === 'ready') {
@@ -100,7 +105,7 @@ async function waitForExportReady(window: BrowserWindow): Promise<void> {
       throw new Error(exportState.error || 'Terminal screenshot export failed.');
     }
 
-    await wait(EXPORT_POLL_INTERVAL_MS);
+    await wait(timing.pollIntervalMs);
   }
 
   throw new Error('Timed out while rendering terminal screenshot.');

@@ -32,6 +32,7 @@ export class TerminalAutomationService {
 
   async sendInput(request: TerminalSendInputRequest): Promise<void> {
     const source = request.source ?? 'bridge';
+    const timing = this.preferencesStore.getBridgeSettings().timing;
     if (request.content) {
       this.terminalSessionManager.write({
         sessionId: request.sessionId,
@@ -42,7 +43,7 @@ export class TerminalAutomationService {
 
     if (request.appendEnter ?? true) {
       if (request.content) {
-        await wait(TEXT_SUBMIT_ENTER_DELAY_MS);
+        await wait(timing.textSubmitEnterDelayMs);
       }
 
       this.terminalSessionManager.sendKey(request.sessionId, 'enter', source);
@@ -54,12 +55,13 @@ export class TerminalAutomationService {
     const expectOutput = request.expectOutput ?? true;
     const promoteToOutputOnMeaningfulChange = request.promoteToOutputOnMeaningfulChange ?? false;
     const bridgeSettings = this.preferencesStore.getBridgeSettings();
-    const stablePollTarget = request.stablePollCount ?? this.config.completion.stablePollCount;
-    const settleMs = request.settleMs ?? this.config.completion.settleMs;
+    const { timing } = bridgeSettings;
+    const stablePollTarget = request.stablePollCount ?? timing.completionStablePollCount;
+    const settleMs = request.settleMs ?? timing.completionSettleMs;
     const softTimeoutMs = request.softTimeoutMs ?? bridgeSettings.softTimeoutMs;
-    const noOutputTimeoutMs = request.noOutputTimeoutMs ?? this.config.completion.noOutputTimeoutMs;
+    const noOutputTimeoutMs = request.noOutputTimeoutMs ?? timing.completionNoOutputTimeoutMs;
     const hardTimeoutMs = request.hardTimeoutMs ?? bridgeSettings.hardTimeoutMs;
-    const pollIntervalMs = request.pollIntervalMs ?? this.config.completion.pollIntervalMs;
+    const pollIntervalMs = request.pollIntervalMs ?? timing.completionPollIntervalMs;
     const baselinePromptReadyAt = request.baselinePromptReadyAt;
     const baselineObservedOutputEvents = request.baselineObservedOutputEvents ?? 0;
 
@@ -74,11 +76,7 @@ export class TerminalAutomationService {
       const elapsed = now - startedAt;
       const idleMs = state.lastActivityAt ? Math.max(0, now - Date.parse(state.lastActivityAt)) : Number.POSITIVE_INFINITY;
       const observedOutput = state.observedOutputEvents > baselineObservedOutputEvents;
-      const pendingInputDetected = hasPendingGeminiInput(snapshot.screenText);
-      const submittedTextPending = pendingInputDetected && isSubmittedTextPending(snapshot.screenText, request.submittedTextProbe);
-      const hasPromptReady =
-        isAfter(state.lastPromptReadyAt, baselinePromptReadyAt) ||
-        hasInteractivePromptReady(snapshot.screenText, request.submittedTextProbe, observedOutput);
+      const hasPromptReady = isAfter(state.lastPromptReadyAt, baselinePromptReadyAt);
       const abortRequested = this.abortRequestedSessions.has(request.sessionId);
 
       if (snapshot.hash === previousHash) {
@@ -127,7 +125,7 @@ export class TerminalAutomationService {
           return buildCompletionResult(request.sessionId, 'no_output_timeout', true, snapshot, state);
         }
       } else if (expectOutput) {
-        if (hasPromptReady && isStable && idleMs >= settleMs && observedOutput && !pendingInputDetected && !submittedTextPending) {
+        if (hasPromptReady && isStable && idleMs >= settleMs && observedOutput) {
           return buildCompletionResult(request.sessionId, 'prompt_ready', true, snapshot, state);
         }
 
@@ -139,7 +137,7 @@ export class TerminalAutomationService {
           return buildCompletionResult(request.sessionId, 'soft_timeout_stable', true, snapshot, state);
         }
 
-        if (elapsed >= softTimeoutMs && isStable && idleMs >= settleMs && (!observedOutput || pendingInputDetected || submittedTextPending)) {
+        if (elapsed >= softTimeoutMs && isStable && idleMs >= settleMs && !observedOutput) {
           return buildCompletionResult(request.sessionId, 'no_output_timeout', false, snapshot, state);
         }
       } else {
@@ -170,10 +168,11 @@ export class TerminalAutomationService {
     const baselineState = await this.terminalSessionManager.getSessionState(request.sessionId);
     const beforeRawTranscript = await this.terminalSessionManager.getRawTranscriptSince(request.sessionId, 0);
     const baselineRawOffset = beforeRawTranscript.length;
+    const timing = this.preferencesStore.getBridgeSettings().timing;
 
     if (request.kind === 'text') {
       if (beforeSnapshot) {
-        await wait(PRE_TEXT_INPUT_SNAPSHOT_DELAY_MS);
+        await wait(timing.preTextInputSnapshotDelayMs);
       }
 
       await this.sendInput({
@@ -188,7 +187,7 @@ export class TerminalAutomationService {
         request.sessionId,
         key,
         request.repeatCount ?? 1,
-        request.repeatDelayMs ?? REPEATED_CONTROL_KEY_DELAY_MS,
+        request.repeatDelayMs ?? timing.repeatedControlKeyDelayMs,
         'bridge'
       );
     }
@@ -200,7 +199,6 @@ export class TerminalAutomationService {
         request.kind === 'control' && (request.key ?? 'enter') === 'enter' && !(request.expectOutput ?? false),
       beforeScreenText: beforeSnapshot?.screenText,
       submittedText: request.kind === 'text' ? request.content : undefined,
-      submittedTextProbe: request.kind === 'text' ? buildSubmittedTextProbe(request.content) : undefined,
       baselinePromptReadyAt: baselineState.lastPromptReadyAt,
       baselineRawOutputOffset: baselineRawOffset,
       baselineObservedOutputEvents: baselineState.observedOutputEvents
@@ -217,7 +215,7 @@ export class TerminalAutomationService {
       tailChars: this.config.diff.tailChars,
       fallbackLines: this.config.diff.fallbackLines
     });
-  const replyResult = sanitizeReplyText({
+    const replyResult = sanitizeReplyText({
       beforeText: beforeSnapshot?.screenText,
       afterText: diffAfterSnapshot.screenText,
       fallbackText: diff.diffText,
@@ -244,14 +242,15 @@ export class TerminalAutomationService {
     redraw: boolean
   ): Promise<TerminalSessionSnapshot> {
     if (redraw) {
+      const timing = this.preferencesStore.getBridgeSettings().timing;
       await this.terminalSessionManager.redrawJiggle({
         sessionId,
         shrinkCols: 1,
-        waitAfterShrinkMs: 500,
-        waitAfterRestoreMs: reason === 'before-send' ? BEFORE_SEND_REDRAW_RESTORE_DELAY_MS : 1000
+        waitAfterShrinkMs: timing.redrawWaitAfterShrinkMs,
+        waitAfterRestoreMs: reason === 'before-send' ? timing.beforeSendRedrawRestoreMs : timing.afterCompleteRedrawRestoreMs
       });
       if (reason === 'before-send') {
-        await wait(BEFORE_SEND_POST_REDRAW_DELAY_MS);
+        await wait(timing.beforeSendPostRedrawDelayMs);
       }
     }
 
@@ -277,14 +276,18 @@ export class TerminalAutomationService {
     sessionId: string,
     key: TerminalControlKey,
     repeatCount = 1,
-    repeatDelayMs = REPEATED_CONTROL_KEY_DELAY_MS,
+    repeatDelayMs?: number,
     source: TerminalWriteSource = 'bridge'
   ): Promise<void> {
     const safeRepeatCount = Math.max(1, Math.trunc(repeatCount));
+    const safeRepeatDelayMs = Math.max(
+      0,
+      Math.trunc(repeatDelayMs ?? this.preferencesStore.getBridgeSettings().timing.repeatedControlKeyDelayMs)
+    );
     for (let index = 0; index < safeRepeatCount; index += 1) {
       this.terminalSessionManager.sendKey(sessionId, key, source);
       if (index + 1 < safeRepeatCount) {
-        await wait(repeatDelayMs);
+        await wait(safeRepeatDelayMs);
       }
     }
   }
@@ -335,89 +338,6 @@ function isAfter(candidate?: string, baseline?: string): boolean {
   }
 
   return Date.parse(candidate) > Date.parse(baseline);
-}
-
-function buildSubmittedTextProbe(content?: string): string | undefined {
-  const normalized = normalizeComparisonText(content);
-  if (!normalized) {
-    return undefined;
-  }
-
-  return normalized.slice(0, 80);
-}
-
-function hasInteractivePromptReady(screenText: string, submittedTextProbe: string | undefined, observedOutput: boolean): boolean {
-  if (!observedOutput) {
-    return false;
-  }
-
-  if (!GEMINI_PROMPT_MARKERS.some((marker) => screenText.includes(marker))) {
-    return false;
-  }
-
-  if (!submittedTextProbe) {
-    return true;
-  }
-
-  return !isSubmittedTextPending(screenText, submittedTextProbe);
-}
-
-function isSubmittedTextPending(screenText: string, submittedTextProbe: string | undefined): boolean {
-  if (!submittedTextProbe) {
-    return false;
-  }
-
-  const normalizedProbe = normalizeComparisonText(submittedTextProbe);
-  if (!normalizedProbe) {
-    return false;
-  }
-
-  return extractPendingInputCandidates(screenText).some((candidate) =>
-    normalizeComparisonText(candidate).includes(normalizedProbe)
-  );
-}
-
-const GEMINI_PROMPT_MARKERS = ['Type your message or @path/to/file'];
-const BEFORE_SEND_REDRAW_RESTORE_DELAY_MS = 1500;
-const BEFORE_SEND_POST_REDRAW_DELAY_MS = 500;
-const PRE_TEXT_INPUT_SNAPSHOT_DELAY_MS = 500;
-const TEXT_SUBMIT_ENTER_DELAY_MS = 500;
-
-function extractPendingInputCandidates(screenText: string): string[] {
-  const lines = screenText.split('\n');
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    if (!isGeminiInputLine(lines[index])) {
-      continue;
-    }
-
-    const block = [lines[index]];
-    for (let nextIndex = index + 1; nextIndex < lines.length; nextIndex += 1) {
-      const nextLine = lines[nextIndex];
-      if (!nextLine.trim() || isGeminiInputLine(nextLine) || isGeminiFooterLine(nextLine)) {
-        break;
-      }
-
-      block.push(nextLine);
-    }
-
-    return [block.join(' ')];
-  }
-
-  return [];
-}
-
-function hasPendingGeminiInput(screenText: string): boolean {
-  return extractPendingInputCandidates(screenText).some((candidate) => normalizeComparisonText(candidate).length > 0);
-}
-
-function isGeminiInputLine(line: string): boolean {
-  const trimmedStart = line.trimStart();
-  return trimmedStart.startsWith('>') && trimmedStart.length > 1;
-}
-
-function isGeminiFooterLine(line: string): boolean {
-  const trimmed = line.trim();
-  return trimmed.startsWith('▄▄') || trimmed.startsWith('workspace ') || trimmed.startsWith('~\\');
 }
 
 function normalizeComparisonText(value?: string): string {
@@ -591,4 +511,3 @@ function wait(durationMs: number): Promise<void> {
 }
 const REPLY_COMPARISON_TAIL_CHARS = 20000;
 const REPLY_FALLBACK_MAX_CHARS = 5000;
-const REPEATED_CONTROL_KEY_DELAY_MS = 100;

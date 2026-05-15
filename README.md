@@ -184,8 +184,8 @@ npm run setup:shortcuts
 - `!/command`: `/command` をそのまま Enter 付きで送る
 - `!noenterTEXT`: `TEXT` を Enter なしで送る（出力待ちはしない）
 - `!enter`: Enter だけ送る
-- `!up` / `!up 3` / `!up3`: 上矢印キーを送る（回数は 1-20、既定は 1、100ms 間隔）
-- `!down` / `!down 3` / `!down3`: 下矢印キーを送る（回数は 1-20、既定は 1、100ms 間隔）
+- `!up` / `!up 3` / `!up3`: 上矢印キーを送る（回数は 1-20、既定は 1、初期間隔は 100ms）
+- `!down` / `!down 3` / `!down3`: 下矢印キーを送る（回数は 1-20、既定は 1、初期間隔は 100ms）
 - `!ctrlc`: Ctrl+C を送る
 - `!esc`: Escape を送る
 - `!stop`: Ctrl+C を送って進行中のリクエスト停止を試みる（止まらない場合は Restart を使う）
@@ -227,6 +227,7 @@ npm run setup:shortcuts
 設定は **Global** と **Per terminal** に分かれています。
 
 - **Global:** 自動スクリーンショット送信 ON/OFF、Discord reply format、soft timeout / hard timeout、bridge 用の固定 cols / rows（rows の最小値は `15`）
+- **Global:** bridge timing（ms 単位の redraw/input/Enter/repeat key 待機）に加えて、completion 判定、manual redraw、live view publish、screenshot capture、app restart、attachment download の待機・timeout も変更でき、設定は `%APPDATA%\PowerShell Discord Bridge\preferences.json` の `bridgeSettings.timing` に保存されます
 - **Per terminal:** ワークスペース名、Discord channel ID、その枠の default working directory
 
 初期値は次のとおりです。
@@ -236,6 +237,7 @@ npm run setup:shortcuts
 - Soft timeout: `300s`
 - Hard timeout: `unlimited`（入力欄の表示値は `7200s`）
 - Bridge size: `100 cols x 50 rows`
+- Bridge timing: text 送信前後の待機に加えて、completion settle / no-output / poll、manual redraw、live view publish、screenshot capture、app restart、attachment download timeout も個別に調整可能
 
 ## はじめて使うときのおすすめ確認
 

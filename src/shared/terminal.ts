@@ -20,12 +20,37 @@ export interface TerminalDimensions {
   rows: number;
 }
 
+export interface BridgeTimingSettings {
+  redrawWaitAfterShrinkMs: number;
+  beforeSendRedrawRestoreMs: number;
+  afterCompleteRedrawRestoreMs: number;
+  beforeSendPostRedrawDelayMs: number;
+  preTextInputSnapshotDelayMs: number;
+  textSubmitEnterDelayMs: number;
+  repeatedControlKeyDelayMs: number;
+  completionSettleMs: number;
+  completionNoOutputTimeoutMs: number;
+  completionPollIntervalMs: number;
+  completionStablePollCount: number;
+  manualRedrawWaitAfterShrinkMs: number;
+  manualRedrawWaitAfterRestoreMs: number;
+  liveViewSnapshotDebounceMs: number;
+  snapshotMirrorFlushTimeoutMs: number;
+  windowScreenshotCaptureDelayMs: number;
+  terminalScreenshotResizeSettleMs: number;
+  terminalScreenshotPollIntervalMs: number;
+  terminalScreenshotReadyTimeoutMs: number;
+  appRestartDelayMs: number;
+  attachmentDownloadTimeoutMs: number;
+}
+
 export interface BridgeSettings {
   autoScreenshotOnReply: boolean;
   replyFormat: BridgeReplyFormat;
   softTimeoutMs: number;
   hardTimeoutMs: number | null;
   bridgeDimensions: TerminalDimensions;
+  timing: BridgeTimingSettings;
 }
 
 export interface BridgeSettingsUpdate {
@@ -34,6 +59,7 @@ export interface BridgeSettingsUpdate {
   softTimeoutMs?: number;
   hardTimeoutMs?: number | null;
   bridgeDimensions?: Partial<TerminalDimensions>;
+  timing?: Partial<BridgeTimingSettings>;
 }
 
 export interface TerminalSlotSettings {
@@ -199,7 +225,6 @@ export interface TerminalWaitForCompletionRequest {
   promoteToOutputOnMeaningfulChange?: boolean;
   beforeScreenText?: string;
   submittedText?: string;
-  submittedTextProbe?: string;
   baselinePromptReadyAt?: string;
   baselineRawOutputOffset?: number;
   baselineObservedOutputEvents?: number;

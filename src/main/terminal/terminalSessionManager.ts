@@ -126,7 +126,8 @@ export class TerminalSessionManager extends EventEmitter {
       mirror: new SessionSnapshotMirror({
         sessionId,
         cols: dimensions.cols,
-        rows: dimensions.rows
+        rows: dimensions.rows,
+        flushTimeoutMs: this.preferencesStore.getBridgeSettings().timing.snapshotMirrorFlushTimeoutMs
       }),
       summary: {
         ...summary,
@@ -299,9 +300,13 @@ export class TerminalSessionManager extends EventEmitter {
       throw new Error(`Unknown terminal session: ${request.sessionId}`);
     }
 
+    const timing = this.preferencesStore.getBridgeSettings().timing;
+    const waitAfterShrinkMs = request.waitAfterShrinkMs ?? timing.manualRedrawWaitAfterShrinkMs;
+    const waitAfterRestoreMs = request.waitAfterRestoreMs ?? timing.manualRedrawWaitAfterRestoreMs;
+
     this.appLogStore?.appendMessage(
       'stdout',
-      `[terminal redraw] ${describeSession(session.summary)} shrinkCols=${request.shrinkCols ?? 1} waitAfterShrinkMs=${request.waitAfterShrinkMs ?? 150} waitAfterRestoreMs=${request.waitAfterRestoreMs ?? 250}\n`
+      `[terminal redraw] ${describeSession(session.summary)} shrinkCols=${request.shrinkCols ?? 1} waitAfterShrinkMs=${waitAfterShrinkMs} waitAfterRestoreMs=${waitAfterRestoreMs}\n`
     );
 
     const original = {
@@ -318,7 +323,7 @@ export class TerminalSessionManager extends EventEmitter {
       source: 'system',
       force: true
     });
-    await wait(request.waitAfterShrinkMs ?? 150);
+    await wait(waitAfterShrinkMs);
 
     this.resize({
       sessionId: request.sessionId,
@@ -327,7 +332,7 @@ export class TerminalSessionManager extends EventEmitter {
       source: 'system',
       force: true
     });
-    await wait(request.waitAfterRestoreMs ?? 250);
+    await wait(waitAfterRestoreMs);
   }
 
   renameSession(sessionId: string, title: string): TerminalSessionSummary {

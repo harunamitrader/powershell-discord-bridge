@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { TerminalSlotId } from '../../shared/terminal';
+import { PreferencesStore } from '../app/preferencesStore';
 import type { BridgeRuntimeConfig } from './bridgeConfig';
 
 export interface DiscordAttachmentInput {
@@ -56,7 +57,10 @@ interface AttachmentManifest {
 }
 
 export class DiscordAttachmentService {
-  constructor(private readonly config: BridgeRuntimeConfig) {}
+  constructor(
+    private readonly config: BridgeRuntimeConfig,
+    private readonly preferencesStore: PreferencesStore
+  ) {}
 
   async saveMessageAttachments(options: SaveDiscordAttachmentBatchOptions): Promise<SavedDiscordAttachmentBatch> {
     validateAttachmentBatch(options.attachments, this.config.attachments.maxFilesPerMessage, this.config.attachments.maxTotalBytes);
@@ -74,8 +78,9 @@ export class DiscordAttachmentService {
     mkdirSync(directory, { recursive: true });
 
     try {
+      const downloadTimeoutMs = this.preferencesStore.getBridgeSettings().timing.attachmentDownloadTimeoutMs;
       for (const [index, attachment] of options.attachments.entries()) {
-        const buffer = await downloadAttachment(attachment.url, this.config.attachments.downloadTimeoutMs);
+        const buffer = await downloadAttachment(attachment.url, downloadTimeoutMs);
         totalBytes += buffer.byteLength;
         if (totalBytes > this.config.attachments.maxTotalBytes) {
           throw new Error(

@@ -58,7 +58,6 @@ const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
 const ATTACHMENTS_UNSUPPORTED_REPLY = '[attachments rejected: attachments are only supported on regular text messages]';
 const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
-const REPEATED_ARROW_DELAY_MS = 100;
 const HELP_REPLY = [
   'Bridge commands:',
   '!help',
@@ -158,7 +157,7 @@ export class DiscordBridgeService {
     private readonly preferencesStore: PreferencesStore
   ) {
     this.replyFormatter = new DiscordReplyFormatter(config.reply);
-    this.attachmentService = new DiscordAttachmentService(config);
+    this.attachmentService = new DiscordAttachmentService(config, preferencesStore);
   }
 
   async start(): Promise<void> {
@@ -509,7 +508,7 @@ export class DiscordBridgeService {
           sessionId,
           parsed.key,
           parsed.repeatCount ?? 1,
-          REPEATED_ARROW_DELAY_MS,
+          undefined,
           'bridge'
         );
       }
@@ -559,10 +558,11 @@ export class DiscordBridgeService {
     await this.tryAddReaction(message, REACTION_SUCCESS);
     await this.sendReplies(message, this.formatReplyText(APP_RESTARTING_REPLY));
 
+    const restartDelayMs = this.preferencesStore.getBridgeSettings().timing.appRestartDelayMs;
     setTimeout(() => {
       app.relaunch();
       app.exit(0);
-    }, 500);
+    }, restartDelayMs);
   }
 
   private async handleSettingsCommand(
@@ -757,7 +757,6 @@ export class DiscordBridgeService {
           kind: 'control',
           key: request.controlKey ?? 'enter',
           repeatCount: request.controlRepeatCount,
-          repeatDelayMs: REPEATED_ARROW_DELAY_MS,
           expectOutput: request.expectOutput
         })
       );
@@ -765,7 +764,7 @@ export class DiscordBridgeService {
 
     if (request.kind === 'screenshot') {
       const capturedAt = new Date().toISOString();
-      const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId), {
+      const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId, this.getTerminalScreenshotTiming()), {
         name: buildTerminalScreenshotFilename(capturedAt)
       });
       return {
@@ -784,9 +783,12 @@ export class DiscordBridgeService {
       }
 
       const capturedAt = new Date().toISOString();
-      const attachment = new AttachmentBuilder(await captureWindowScreenshotPng(mainWindow), {
-        name: buildWindowScreenshotFilename(capturedAt)
-      });
+      const attachment = new AttachmentBuilder(
+        await captureWindowScreenshotPng(mainWindow, this.preferencesStore.getBridgeSettings().timing.windowScreenshotCaptureDelayMs),
+        {
+          name: buildWindowScreenshotFilename(capturedAt)
+        }
+      );
       return {
         completionReason: 'snapshot_captured',
         success: true,
@@ -818,10 +820,19 @@ export class DiscordBridgeService {
     }
 
     const capturedAt = new Date().toISOString();
-    const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId), {
+    const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId, this.getTerminalScreenshotTiming()), {
       name: buildTerminalScreenshotFilename(capturedAt)
     });
     await this.sendReplies(message, this.formatReplyText(AUTO_SCREENSHOT_ATTACHMENT_REPLY), [attachment]);
+  }
+
+  private getTerminalScreenshotTiming() {
+    const timing = this.preferencesStore.getBridgeSettings().timing;
+    return {
+      readyTimeoutMs: timing.terminalScreenshotReadyTimeoutMs,
+      pollIntervalMs: timing.terminalScreenshotPollIntervalMs,
+      resizeSettleMs: timing.terminalScreenshotResizeSettleMs
+    };
   }
 
   private async finishSuccessfulRequest(

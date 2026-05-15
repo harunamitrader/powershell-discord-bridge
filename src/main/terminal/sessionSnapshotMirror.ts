@@ -4,11 +4,13 @@ import type { TerminalDimensions, TerminalSessionSnapshot, TerminalSessionState,
 
 interface SnapshotMirrorOptions extends TerminalDimensions {
   sessionId: string;
+  flushTimeoutMs: number;
 }
 
 export class SessionSnapshotMirror {
   private readonly sessionId: string;
   private readonly terminal: Terminal;
+  private readonly flushTimeoutMs: number;
   private rawTranscript = '';
   private screenRevision = 0;
   private lastSnapshotHash: string | undefined;
@@ -16,6 +18,7 @@ export class SessionSnapshotMirror {
 
   constructor(options: SnapshotMirrorOptions) {
     this.sessionId = options.sessionId;
+    this.flushTimeoutMs = options.flushTimeoutMs;
     this.terminal = new Terminal({
       allowProposedApi: true,
       cols: options.cols,
@@ -119,7 +122,7 @@ export class SessionSnapshotMirror {
   private async flush(operation: 'capture' | 'getState'): Promise<void> {
     const timedOut = await Promise.race([
       this.writeChain.then(() => false),
-      wait(MIRROR_FLUSH_TIMEOUT_MS).then(() => true)
+      wait(this.flushTimeoutMs).then(() => true)
     ]);
 
     if (timedOut) {
@@ -129,8 +132,6 @@ export class SessionSnapshotMirror {
     }
   }
 }
-
-const MIRROR_FLUSH_TIMEOUT_MS = 2000;
 
 function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => {

@@ -9,6 +9,7 @@
 - `!rst` / `!rsa` / `!ss` / `!wss` の省略コマンド
 - `!hardtimeout`, `!hardtimeoutunlimited`, `!hardtimeoutoff` コマンド
 - `!cols`, `!rows` で bridge dimensions を確認・変更するコマンド
+- Settings / `preferences.json` で bridge timing に加えて completion / screenshot / restart / attachment download timeout も調整できる設定項目
 - `!up`, `!down` で矢印キーを送るコマンド
 - `!up N`, `!down N` と `!upN`, `!downN` の連続矢印キーコマンド
 - `!replyformat`, `!replyformatcommand`, `!replyformattext` コマンド
@@ -27,6 +28,7 @@
 - busy 中の Discord text/control 入力は、キューせず実行中セッションへ直接送る仕様に変更
 - busy 中でもローカル UI から入力できるよう変更
 - 通常の text 送信前待機を延長し、before-send 再描画後・snapshot 後・Enter 前の各間隔を広げて Copilot/TUI への入力反映を待ちやすく変更
+- interactive CLI の完了判定は、Gemini 固有の TUI マーカーではなく汎用の prompt / output / idle 信号を優先するよう変更
 - hard timeout 到達時は自動リセットせず、timeout 応答だけ返す仕様に変更
 - Settings の timeout 表示単位を ms から s に変更
 - グローバルの default working directory 設定を廃止
@@ -38,7 +40,6 @@
 ### Fixed
 
 - Discord 返信に Copilot CLI の進捗再描画行が混ざりやすい経路を縮小
-- Gemini 入力欄に未送信テキストが残ったまま完了扱いになるケースを抑制
 - TUI の再描画で Discord 返信差分が広がりすぎるケースを、500文字アンカー探索と小さめ fallback で抑制
 
 ## [0.1.0] - 2026-05-10

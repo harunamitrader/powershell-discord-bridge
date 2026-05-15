@@ -144,7 +144,13 @@ export function registerIpc(options: RegisterIpcOptions): void {
   });
 
   ipcMain.handle('terminal:send-key', async (_event, request: TerminalControlRequest) => {
-    terminalSessionManager.sendKey(request.sessionId, request.key, request.source);
+    await terminalAutomationService.sendControlKey(
+      request.sessionId,
+      request.key,
+      request.repeatCount,
+      request.repeatDelayMs,
+      request.source
+    );
   });
 
   ipcMain.handle('terminal:stop-request', async (_event, sessionId: string) => {
