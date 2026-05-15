@@ -217,15 +217,12 @@ npm run setup:shortcuts
 
 ```text
 # [DISCORD_ATTACHMENTS_BEGIN]
-# directory: "C:\...\msg-123"
-# manifest: "C:\...\msg-123\attachments.json"
-# count: 2
 # file[1]: "C:\...\msg-123\001-report.csv"
 # file[2]: "C:\...\msg-123\002-image.png"
 # [DISCORD_ATTACHMENTS_END]
 ```
 
-このコメントブロックの後ろに元の本文がそのまま続きます。添付は **受信時点ですぐに保存** され、保存先は `slot-{n}\YYYY-MM-DD\msg-{messageId}` 単位で分かれます。添付は **1メッセージあたり最大 10 ファイル / 合計 10MB** までで、`!help` などの制御コマンドに添付した場合は拒否されます。本文なしで添付だけ送った場合も、保存済み manifest の場所を Discord に返しつつ、コメントブロックだけを terminal に渡します。
+このコメントブロックの後ろに元の本文がそのまま続きます。添付は **受信時点ですぐに保存** され、保存先は `slot-{n}\YYYY-MM-DD\msg-{messageId}` 単位で分かれます。添付は **1メッセージあたり最大 10 ファイル / 合計 10MB** までで、`!help` などの制御コマンドに添付した場合は拒否されます。本文なしで添付だけ送った場合も、**ファイルの絶対パスだけ** を載せたコメントブロックを terminal に渡します。`attachments.json` manifest は内部保存のままで、通常プロンプトには出しません。
 
 `discord-publish` 監視では、配下の通常ファイルを **再帰監視** し、新規作成だけでなく**更新保存**でも再送します。`~$` / `.tmp` / `.crdownload` / `.part` などの一時ファイルと 0 byte ファイルは無視し、同じ内容の連続イベントは内容ハッシュで重複送信を抑えます。成功時は **添付ファイルだけ** を送り、サイズが **10MB** を超えるファイルだけは artifact チャンネルへエラーメッセージを送ります。
 

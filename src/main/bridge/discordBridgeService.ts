@@ -1540,7 +1540,7 @@ function buildTerminalRequestContent(request: BridgeRequestRecord): string {
 }
 
 function buildAttachmentSavedReply(batch: SavedDiscordAttachmentBatch): string {
-  return `[attachments saved: ${batch.count} files]\n[attachment manifest: ${batch.manifestPath}]`;
+  return `[attachments saved: ${batch.count} files]`;
 }
 
 function toAttachmentLogEntry(batch: SavedDiscordAttachmentBatch | undefined): Pick<

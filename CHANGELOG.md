@@ -38,6 +38,7 @@
 - 各 terminal の working directory 表記を `Default working directory` に変更
 - 初期設定を `auto screenshot ON`、`code block`、`soft timeout 300s`、`hard timeout unlimited`、`100x50` に変更
 - デスクトップショートカットは通常起動時に親コンソールを表示しない hidden launcher を使うよう変更
+- Discord 添付ファイルを terminal に渡すコメントブロックは、manifest や count を含めずファイルパスのみの簡略形式に変更
 - bridge rows の最小値を `15` に変更
 
 ### Fixed

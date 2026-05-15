@@ -129,7 +129,7 @@ export class DiscordAttachmentService {
         count: savedFiles.length,
         totalBytes,
         files: savedFiles,
-        contextBlock: buildAttachmentContextBlock(directory, manifestPath, savedFiles)
+        contextBlock: buildAttachmentContextBlock(savedFiles)
       };
     } catch (error) {
       rmSync(directory, { recursive: true, force: true });
@@ -198,15 +198,10 @@ function sanitizeFilename(value: string): string {
 }
 
 function buildAttachmentContextBlock(
-  directory: string,
-  manifestPath: string,
   files: SavedDiscordAttachmentFile[]
 ): string {
   return [
     '# [DISCORD_ATTACHMENTS_BEGIN]',
-    `# directory: ${JSON.stringify(directory)}`,
-    `# manifest: ${JSON.stringify(manifestPath)}`,
-    `# count: ${files.length}`,
     ...files.map((file) => `# file[${file.index}]: ${JSON.stringify(file.absolutePath)}`),
     '# [DISCORD_ATTACHMENTS_END]'
   ].join('\n');
