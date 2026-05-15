@@ -44,13 +44,20 @@ export interface BridgeTimingSettings {
   attachmentDownloadTimeoutMs: number;
 }
 
+export interface BridgeArtifactPublishSettings {
+  watchDirectory: string;
+  channelId: string;
+}
+
 export interface BridgeSettings {
   autoScreenshotOnReply: boolean;
   replyFormat: BridgeReplyFormat;
   softTimeoutMs: number;
   hardTimeoutMs: number | null;
+  diffAnchorChars: number;
   bridgeDimensions: TerminalDimensions;
   timing: BridgeTimingSettings;
+  artifactPublish: BridgeArtifactPublishSettings;
 }
 
 export interface BridgeSettingsUpdate {
@@ -58,8 +65,10 @@ export interface BridgeSettingsUpdate {
   replyFormat?: BridgeReplyFormat;
   softTimeoutMs?: number;
   hardTimeoutMs?: number | null;
+  diffAnchorChars?: number;
   bridgeDimensions?: Partial<TerminalDimensions>;
   timing?: Partial<BridgeTimingSettings>;
+  artifactPublish?: Partial<BridgeArtifactPublishSettings>;
 }
 
 export interface TerminalSlotSettings {

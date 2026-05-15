@@ -32,8 +32,9 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - 起動時に 4 つの固定 PowerShell 枠を自動で立ち上げる
 - Discord に送った文章を、そのまま PowerShell 側へ入力する
 - 実行結果の差分を Discord に返信する
-- `!screenshot` / `!ss` で **対象 terminal のスクリーンショット**を Discord に返す
-- `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す
+- `!screenshot` / `!ss` で **対象 terminal のスクリーンショット**を Discord に返す（busy 中も即時取得、再描画誘発なし）
+- `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す（busy 中も即時取得）
+- terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
@@ -169,10 +170,13 @@ npm run setup:shortcuts
 2. アプリ起動時に、**4つ固定の PowerShell 枠** が自動で作成される
 3. 各枠は保存済みの設定を使って、同じ Discord チャンネルに再接続される
 4. 各枠の channel ID が空なら、指定 guild に Discord チャンネルが自動作成される
-5. そのチャンネルに普通のメッセージを送る
-6. 対応する PowerShell 枠で Discord の内容が処理される
-7. 結果が Discord に返る
-8. 右上の **Logs** を開くと、外部コンソールに出ている起動ログや bridge ログ、terminal 入力ログをアプリ内オーバーレイでも確認できる
+5. 起動時に、共通の artifact チャンネル `terminal-artifacts` も自動作成または再利用される
+6. 初回起動時は terminal 1 の working directory 直下に `discord-publish` フォルダが自動作成される
+7. そのチャンネルに普通のメッセージを送る
+8. 対応する PowerShell 枠で Discord の内容が処理される
+9. 結果が Discord に返る
+10. `discord-publish` に保存したファイルは、新規作成・更新時に artifact チャンネルへ自動添付送信される
+11. 右上の **Logs** を開くと、外部コンソールに出ている起動ログや bridge ログ、terminal 入力ログをアプリ内オーバーレイでも確認できる
 
 各枠は固定で、増減はできません。  
 ワークスペース名を変更した場合は、対応する Discord チャンネル名も同じ名前に追従して変更されます。  
@@ -192,8 +196,8 @@ npm run setup:shortcuts
 - `!forcestop`: 現在の terminal を強制停止して自動で再起動する
 - `!restartterminal` / `!rst`: 対応する terminal slot を再起動
 - `!restartapp` / `!rsa`: アプリ自体を再起動
-- `!screenshot` / `!ss`: 対象 terminal のスクリーンショットを返す
-- `!windowscreenshot` / `!wss`: アプリ画面全体のスクリーンショットを返す
+- `!screenshot` / `!ss`: 対象 terminal のスクリーンショットを返す（busy 中もキューせず即時）
+- `!windowscreenshot` / `!wss`: アプリ画面全体のスクリーンショットを返す（busy 中もキューせず即時）
 - `!autoscreenshoton`: 各返信完了後の自動スクリーンショット送信を ON
 - `!autoscreenshotoff`: 各返信完了後の自動スクリーンショット送信を OFF
 - `!autoscreenshot`: 現在の ON/OFF 状態を確認
@@ -223,10 +227,16 @@ npm run setup:shortcuts
 
 このコメントブロックの後ろに元の本文がそのまま続きます。添付は **受信時点ですぐに保存** され、保存先は `slot-{n}\YYYY-MM-DD\msg-{messageId}` 単位で分かれます。添付は **1メッセージあたり最大 10 ファイル / 合計 10MB** までで、`!help` などの制御コマンドに添付した場合は拒否されます。本文なしで添付だけ送った場合も、保存済み manifest の場所を Discord に返しつつ、コメントブロックだけを terminal に渡します。
 
+`discord-publish` 監視では、配下の通常ファイルを **再帰監視** し、新規作成だけでなく**更新保存**でも再送します。`~$` / `.tmp` / `.crdownload` / `.part` などの一時ファイルと 0 byte ファイルは無視し、同じ内容の連続イベントは内容ハッシュで重複送信を抑えます。成功時は **添付ファイルだけ** を送り、サイズが **10MB** を超えるファイルだけは artifact チャンネルへエラーメッセージを送ります。
+
+screen diff の中間アンカー長は、既定値を **500 文字から 300 文字へ変更**し、`preferences.json` の `bridgeSettings.diffAnchorChars` と Settings から調整できるようにしています。短くすると差分開始位置を後ろへ寄せやすくなる一方で、似た文字列が多い画面では誤アンカーの可能性も少し上がります。
+
 設定は Electron アプリ右上の **Settings** から開きます。  
 設定は **Global** と **Per terminal** に分かれています。
 
 - **Global:** 自動スクリーンショット送信 ON/OFF、Discord reply format、soft timeout / hard timeout、bridge 用の固定 cols / rows（rows の最小値は `15`）
+- **Global:** Artifact publish folder（初期値は terminal 1 の cwd 直下の `discord-publish`、送信先チャンネルは自動作成される `terminal-artifacts`）
+- **Global:** screen diff anchor chars（既定値 `300`、`preferences.json` の `bridgeSettings.diffAnchorChars` に保存）
 - **Global:** bridge timing（ms 単位の redraw/input/Enter/repeat key 待機）に加えて、completion 判定、manual redraw、live view publish、screenshot capture、app restart、attachment download の待機・timeout も変更でき、設定は `%APPDATA%\PowerShell Discord Bridge\preferences.json` の `bridgeSettings.timing` に保存されます
 - **Per terminal:** ワークスペース名、Discord channel ID、その枠の default working directory
 
@@ -237,6 +247,8 @@ npm run setup:shortcuts
 - Soft timeout: `300s`
 - Hard timeout: `unlimited`（入力欄の表示値は `7200s`）
 - Bridge size: `100 cols x 50 rows`
+- Artifact publish folder: `terminal 1 cwd\discord-publish`
+- Screen diff anchor chars: `300`
 - Bridge timing: text 送信前後の待機に加えて、completion settle / no-output / poll、manual redraw、live view publish、screenshot capture、app restart、attachment download timeout も個別に調整可能
 
 ## はじめて使うときのおすすめ確認

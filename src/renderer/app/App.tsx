@@ -16,6 +16,8 @@ interface SettingsDraft {
   softTimeoutSeconds: string;
   hardTimeoutSeconds: string;
   hardTimeoutUnlimited: boolean;
+  artifactWatchDirectory: string;
+  diffAnchorChars: string;
   bridgeCols: string;
   bridgeRows: string;
   redrawWaitAfterShrinkMs: string;
@@ -42,6 +44,7 @@ interface SettingsDraft {
 }
 
 type SettingsNumericField =
+  | 'diffAnchorChars'
   | 'bridgeCols'
   | 'bridgeRows'
   | 'redrawWaitAfterShrinkMs'
@@ -84,6 +87,8 @@ const MAX_SOFT_TIMEOUT_SECONDS = MAX_SOFT_TIMEOUT_MS / 1000;
 const MIN_HARD_TIMEOUT_SECONDS = MIN_HARD_TIMEOUT_MS / 1000;
 const MAX_HARD_TIMEOUT_SECONDS = MAX_HARD_TIMEOUT_MS / 1000;
 const DEFAULT_HARD_TIMEOUT_SECONDS = DEFAULT_HARD_TIMEOUT_MS / 1000;
+const MIN_DIFF_ANCHOR_CHARS = 50;
+const MAX_DIFF_ANCHOR_CHARS = 5000;
 const MAX_RENDERED_APP_LOGS = 2000;
 
 export function App() {
@@ -98,9 +103,14 @@ export function App() {
     replyFormat: 'command',
     softTimeoutMs: 300000,
     hardTimeoutMs: null,
+    diffAnchorChars: 300,
     bridgeDimensions: {
       cols: 100,
       rows: 50
+    },
+    artifactPublish: {
+      watchDirectory: '',
+      channelId: ''
     },
     timing: {
       redrawWaitAfterShrinkMs: 500,
@@ -132,6 +142,8 @@ export function App() {
     softTimeoutSeconds: '300',
     hardTimeoutSeconds: String(DEFAULT_HARD_TIMEOUT_SECONDS),
     hardTimeoutUnlimited: true,
+    artifactWatchDirectory: '',
+    diffAnchorChars: '300',
     bridgeCols: '100',
     bridgeRows: '50',
     redrawWaitAfterShrinkMs: '500',
@@ -290,8 +302,10 @@ export function App() {
       ? null
       : parseBoundedInteger(settingsDraft.hardTimeoutSeconds, MIN_HARD_TIMEOUT_SECONDS, MAX_HARD_TIMEOUT_SECONDS);
     const hardTimeoutMs = hardTimeoutSeconds === null ? null : hardTimeoutSeconds * 1000;
+    const diffAnchorChars = parseBoundedInteger(settingsDraft.diffAnchorChars, MIN_DIFF_ANCHOR_CHARS, MAX_DIFF_ANCHOR_CHARS);
     const cols = parseBoundedInteger(settingsDraft.bridgeCols, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS);
     const rows = parseBoundedInteger(settingsDraft.bridgeRows, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS);
+    const artifactWatchDirectory = settingsDraft.artifactWatchDirectory.trim();
     const redrawWaitAfterShrinkMs = parseBoundedInteger(settingsDraft.redrawWaitAfterShrinkMs, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS);
     const beforeSendRedrawRestoreMs = parseBoundedInteger(
       settingsDraft.beforeSendRedrawRestoreMs,
@@ -390,9 +404,15 @@ export function App() {
       MAX_TIMING_DELAY_MS
     );
 
+    if (artifactWatchDirectory.length === 0) {
+      setSettingsError('Artifact publish folder を入力してください。');
+      return;
+    }
+
     if (
       !Number.isFinite(softTimeoutSeconds) ||
       (!settingsDraft.hardTimeoutUnlimited && !Number.isFinite(hardTimeoutSeconds)) ||
+      !Number.isFinite(diffAnchorChars) ||
       !Number.isFinite(cols) ||
       !Number.isFinite(rows) ||
       !Number.isFinite(redrawWaitAfterShrinkMs) ||
@@ -431,6 +451,10 @@ export function App() {
         replyFormat: settingsDraft.replyFormat,
         softTimeoutMs,
         hardTimeoutMs,
+        diffAnchorChars,
+        artifactPublish: {
+          watchDirectory: artifactWatchDirectory
+        },
         bridgeDimensions: {
           cols,
           rows
@@ -805,6 +829,59 @@ export function App() {
                       <span className="settings-toggle__title">Unlimited hard timeout</span>
                       <span className="settings-toggle__description">Disable forced timeout and wait until completion or manual stop.</span>
                     </div>
+                  </label>
+                  <label className="settings-field">
+                    <span className="settings-field__label">Artifact publish folder</span>
+                    <input
+                      className="settings-field__input"
+                      type="text"
+                      value={settingsDraft.artifactWatchDirectory}
+                      onChange={(event) =>
+                        setSettingsDraft((current) => ({
+                          ...current,
+                          artifactWatchDirectory: event.target.value
+                        }))
+                      }
+                      placeholder="C:\\path\\to\\discord-publish"
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span className="settings-field__label">Artifact channel</span>
+                    <input
+                      className="settings-field__input"
+                      type="text"
+                      value={bridgeSettings.artifactPublish.channelId || 'Auto-create on Discord connect'}
+                      readOnly
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span className="settings-field__label">{`Screen diff anchor chars (${MIN_DIFF_ANCHOR_CHARS}-${MAX_DIFF_ANCHOR_CHARS})`}</span>
+                    <input
+                      className="settings-field__input"
+                      type="number"
+                      min={MIN_DIFF_ANCHOR_CHARS}
+                      max={MAX_DIFF_ANCHOR_CHARS}
+                      step={1}
+                      value={settingsDraft.diffAnchorChars}
+                      onChange={(event) =>
+                        updateBoundedIntegerDraft(
+                          setSettingsDraft,
+                          'diffAnchorChars',
+                          event.target.value,
+                          MIN_DIFF_ANCHOR_CHARS,
+                          MAX_DIFF_ANCHOR_CHARS
+                        )
+                      }
+                      onBlur={() =>
+                        clampBoundedIntegerDraft(
+                          setSettingsDraft,
+                          'diffAnchorChars',
+                          settingsDraft.diffAnchorChars,
+                          MIN_DIFF_ANCHOR_CHARS,
+                          MAX_DIFF_ANCHOR_CHARS
+                        )
+                      }
+                    />
                   </label>
                   <div className="settings-grid">
                     <label className="settings-field">
@@ -1489,6 +1566,8 @@ function createSettingsDraft(bridgeSettings: BridgeSettings): SettingsDraft {
     hardTimeoutSeconds:
       bridgeSettings.hardTimeoutMs === null ? String(DEFAULT_HARD_TIMEOUT_SECONDS) : String(Math.round(bridgeSettings.hardTimeoutMs / 1000)),
     hardTimeoutUnlimited: bridgeSettings.hardTimeoutMs === null,
+    artifactWatchDirectory: bridgeSettings.artifactPublish.watchDirectory,
+    diffAnchorChars: String(bridgeSettings.diffAnchorChars),
     bridgeCols: String(bridgeSettings.bridgeDimensions.cols),
     bridgeRows: String(bridgeSettings.bridgeDimensions.rows),
     redrawWaitAfterShrinkMs: String(bridgeSettings.timing.redrawWaitAfterShrinkMs),

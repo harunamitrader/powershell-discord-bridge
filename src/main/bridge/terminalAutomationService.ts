@@ -91,7 +91,8 @@ export class TerminalAutomationService {
       const hasMeaningfulVisibleChange = hasMeaningfulReplyText({
         beforeText: request.beforeScreenText,
         afterText: snapshot.screenText,
-        submittedText: request.submittedText
+        submittedText: request.submittedText,
+        diffAnchorChars: bridgeSettings.diffAnchorChars
       });
       const hasMeaningfulChangeSignal = observedOutput || hasMeaningfulVisibleChange;
       if (state.status === 'exited') {
@@ -213,13 +214,15 @@ export class TerminalAutomationService {
       afterSnapshot: diffAfterSnapshot,
       rawOutput,
       tailChars: this.config.diff.tailChars,
-      fallbackLines: this.config.diff.fallbackLines
+      fallbackLines: this.config.diff.fallbackLines,
+      middleAnchorChars: this.preferencesStore.getBridgeSettings().diffAnchorChars
     });
     const replyResult = sanitizeReplyText({
       beforeText: beforeSnapshot?.screenText,
       afterText: diffAfterSnapshot.screenText,
       fallbackText: diff.diffText,
-      submittedText: request.kind === 'text' ? request.content : undefined
+      submittedText: request.kind === 'text' ? request.content : undefined,
+      diffAnchorChars: this.preferencesStore.getBridgeSettings().diffAnchorChars
     });
     const replyText = replyResult.usedFallback
       ? `[reply fallback used]\n${replyResult.text}`
@@ -349,6 +352,7 @@ function sanitizeReplyText(options: {
   afterText?: string;
   fallbackText: string;
   submittedText?: string;
+  diffAnchorChars: number;
 }): { text: string; usedFallback: boolean } {
   const extracted = extractSanitizedReplyText(options);
   if (extracted) {
@@ -369,12 +373,14 @@ function hasMeaningfulReplyText(options: {
   beforeText?: string;
   afterText?: string;
   submittedText?: string;
+  diffAnchorChars: number;
 }): boolean {
   return extractSanitizedReplyText({
     beforeText: options.beforeText,
     afterText: options.afterText,
     fallbackText: '',
-    submittedText: options.submittedText
+    submittedText: options.submittedText,
+    diffAnchorChars: options.diffAnchorChars
   }).length > 0;
 }
 
@@ -383,9 +389,10 @@ function extractSanitizedReplyText(options: {
   afterText?: string;
   fallbackText: string;
   submittedText?: string;
+  diffAnchorChars: number;
 }): string {
   const original = normalizeTerminalText(
-    extractTailDiffFromText(options.beforeText, options.afterText) ?? options.fallbackText
+    extractTailDiffFromText(options.beforeText, options.afterText, options.diffAnchorChars) ?? options.fallbackText
   );
   const lines = original.split('\n').map((line) => line.replace(/[ \t]+$/g, ''));
   const normalizedSubmitted = normalizeComparisonText(options.submittedText);
@@ -467,8 +474,8 @@ function stripInlinePowerShellPrompts(text: string): string {
   return text.replace(/PS [^\r\n>]+>\s*/g, '');
 }
 
-function extractTailDiffFromText(beforeText?: string, afterText?: string): string | undefined {
-  return extractComparableLineDiff(beforeText, afterText, REPLY_COMPARISON_TAIL_CHARS);
+function extractTailDiffFromText(beforeText: string | undefined, afterText: string | undefined, diffAnchorChars: number): string | undefined {
+  return extractComparableLineDiff(beforeText, afterText, REPLY_COMPARISON_TAIL_CHARS, diffAnchorChars);
 }
 
 function limitFallbackReplyText(text: string): string {

@@ -56,6 +56,8 @@ const AUTO_SCREENSHOT_STATUS_OFF_REPLY = '[auto screenshot after reply: off]';
 const AUTO_SCREENSHOT_ATTACHMENT_REPLY = '[auto screenshot after completion: terminal]';
 const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
 const ATTACHMENTS_UNSUPPORTED_REPLY = '[attachments rejected: attachments are only supported on regular text messages]';
+const ARTIFACT_CHANNEL_NAME = 'terminal-artifacts';
+const ARTIFACT_CHANNEL_TOPIC = 'PowerShell Discord Bridge watched file uploads.';
 const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
 const HELP_REPLY = [
@@ -129,7 +131,9 @@ type ParsedBridgeMessage =
 
 type BusyPassthroughMessage =
   | Extract<ParsedBridgeMessage, { kind: 'control' }>
-  | Extract<ParsedBridgeMessage, { kind: 'text' }>;
+  | Extract<ParsedBridgeMessage, { kind: 'text' }>
+  | Extract<ParsedBridgeMessage, { kind: 'screenshot' }>
+  | Extract<ParsedBridgeMessage, { kind: 'window-screenshot' }>;
 
 interface BridgeExecutionResult {
   completionReason: string;
@@ -137,6 +141,22 @@ interface BridgeExecutionResult {
   replyChunks: string[];
   diffLength: number;
   attachments?: AttachmentBuilder[];
+}
+
+interface ArtifactPublishFileRequest {
+  watchDirectory: string;
+  fullPath: string;
+  relativePath: string;
+  sizeBytes: number;
+  buffer: Buffer;
+}
+
+interface ArtifactPublishErrorRequest {
+  watchDirectory: string;
+  fullPath: string;
+  relativePath: string;
+  sizeBytes: number;
+  reason: 'file-too-large';
 }
 
 export class DiscordBridgeService {
@@ -226,6 +246,12 @@ export class DiscordBridgeService {
         console.error(`Failed to bind startup slot ${slot.slotId}`, error);
       }
     }
+
+    try {
+      await this.ensureArtifactChannelBinding();
+    } catch (error) {
+      console.error('Failed to bind artifact publish channel', error);
+    }
   }
 
   async restartSlot(slotId: TerminalSlotId): Promise<TerminalSessionSummary> {
@@ -274,6 +300,37 @@ export class DiscordBridgeService {
       workspaceName: request.title
     });
     return result.session ?? this.terminalSessionManager.renameSession(request.sessionId, result.slot.workspaceName);
+  }
+
+  async publishArtifactFile(request: ArtifactPublishFileRequest): Promise<void> {
+    const channel = await this.ensureArtifactChannelBinding();
+    if (!channel) {
+      throw new Error('Artifact publish channel is not available.');
+    }
+
+    const attachment = new AttachmentBuilder(request.buffer, {
+      name: path.basename(request.fullPath)
+    });
+    await channel.send({
+      files: [attachment],
+      allowedMentions: {
+        parse: []
+      }
+    });
+  }
+
+  async publishArtifactError(request: ArtifactPublishErrorRequest): Promise<void> {
+    const channel = await this.ensureArtifactChannelBinding();
+    if (!channel) {
+      throw new Error('Artifact publish channel is not available.');
+    }
+
+    await channel.send({
+      content: buildArtifactPublishErrorMessage(request.watchDirectory, request.relativePath, request.fullPath, request.sizeBytes, request.reason),
+      allowedMentions: {
+        parse: []
+      }
+    });
   }
 
   private async handleMessage(message: Message): Promise<void> {
@@ -503,7 +560,7 @@ export class DiscordBridgeService {
           appendEnter: parsed.appendEnter,
           source: 'bridge'
         });
-      } else {
+      } else if (parsed.kind === 'control') {
         await this.terminalAutomationService.sendControlKey(
           sessionId,
           parsed.key,
@@ -511,6 +568,12 @@ export class DiscordBridgeService {
           undefined,
           'bridge'
         );
+      } else if (parsed.kind === 'screenshot') {
+        await this.sendReplies(message, ['[terminal screenshot]'], [
+          await this.createTerminalScreenshotAttachment(sessionId)
+        ]);
+      } else {
+        await this.sendReplies(message, ['[app window screenshot]'], [await this.createWindowScreenshotAttachment()]);
       }
 
       this.persistProcessingLog({
@@ -518,7 +581,8 @@ export class DiscordBridgeService {
         messageId: message.id,
         channelId: message.channelId,
         sessionId,
-        requestState: 'forwarded',
+        requestState:
+          parsed.kind === 'screenshot' || parsed.kind === 'window-screenshot' ? 'completed' : 'forwarded',
         kind: parsed.kind,
         startedAt,
         finishedAt: new Date().toISOString(),
@@ -763,38 +827,22 @@ export class DiscordBridgeService {
     }
 
     if (request.kind === 'screenshot') {
-      const capturedAt = new Date().toISOString();
-      const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId, this.getTerminalScreenshotTiming()), {
-        name: buildTerminalScreenshotFilename(capturedAt)
-      });
       return {
         completionReason: 'snapshot_captured',
         success: true,
         replyChunks: ['[terminal screenshot]'],
         diffLength: 0,
-        attachments: [attachment]
+        attachments: [await this.createTerminalScreenshotAttachment(sessionId)]
       };
     }
 
     if (request.kind === 'window-screenshot') {
-      const mainWindow = this.getMainWindow();
-      if (!mainWindow) {
-        throw new Error('Main window is not available for screenshot capture.');
-      }
-
-      const capturedAt = new Date().toISOString();
-      const attachment = new AttachmentBuilder(
-        await captureWindowScreenshotPng(mainWindow, this.preferencesStore.getBridgeSettings().timing.windowScreenshotCaptureDelayMs),
-        {
-          name: buildWindowScreenshotFilename(capturedAt)
-        }
-      );
       return {
         completionReason: 'snapshot_captured',
         success: true,
         replyChunks: ['[app window screenshot]'],
         diffLength: 0,
-        attachments: [attachment]
+        attachments: [await this.createWindowScreenshotAttachment()]
       };
     }
 
@@ -819,11 +867,9 @@ export class DiscordBridgeService {
       return;
     }
 
-    const capturedAt = new Date().toISOString();
-    const attachment = new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId, this.getTerminalScreenshotTiming()), {
-      name: buildTerminalScreenshotFilename(capturedAt)
-    });
-    await this.sendReplies(message, this.formatReplyText(AUTO_SCREENSHOT_ATTACHMENT_REPLY), [attachment]);
+    await this.sendReplies(message, this.formatReplyText(AUTO_SCREENSHOT_ATTACHMENT_REPLY), [
+      await this.createTerminalScreenshotAttachment(sessionId)
+    ]);
   }
 
   private getTerminalScreenshotTiming() {
@@ -833,6 +879,28 @@ export class DiscordBridgeService {
       pollIntervalMs: timing.terminalScreenshotPollIntervalMs,
       resizeSettleMs: timing.terminalScreenshotResizeSettleMs
     };
+  }
+
+  private async createTerminalScreenshotAttachment(sessionId: string): Promise<AttachmentBuilder> {
+    const capturedAt = new Date().toISOString();
+    return new AttachmentBuilder(await captureTerminalScreenshotPng(sessionId, this.getTerminalScreenshotTiming()), {
+      name: buildTerminalScreenshotFilename(capturedAt)
+    });
+  }
+
+  private async createWindowScreenshotAttachment(): Promise<AttachmentBuilder> {
+    const mainWindow = this.getMainWindow();
+    if (!mainWindow) {
+      throw new Error('Main window is not available for screenshot capture.');
+    }
+
+    const capturedAt = new Date().toISOString();
+    return new AttachmentBuilder(
+      await captureWindowScreenshotPng(mainWindow, this.preferencesStore.getBridgeSettings().timing.windowScreenshotCaptureDelayMs),
+      {
+        name: buildWindowScreenshotFilename(capturedAt)
+      }
+    );
   }
 
   private async finishSuccessfulRequest(
@@ -1033,6 +1101,28 @@ export class DiscordBridgeService {
 
     const channelName = normalizeWorkspaceChannelName(workspaceName);
     const desiredTopic = buildWorkspaceChannelTopic(slotId, workspaceName, cwd);
+    return this.ensureManagedTextChannel(channelId, channelName, desiredTopic);
+  }
+
+  private async ensureArtifactChannelBinding(): Promise<TextChannel | undefined> {
+    if (!this.client?.isReady()) {
+      return undefined;
+    }
+
+    const settings = this.preferencesStore.getBridgeSettings();
+    const channel = await this.ensureManagedTextChannel(settings.artifactPublish.channelId, ARTIFACT_CHANNEL_NAME, ARTIFACT_CHANNEL_TOPIC);
+    const nextChannelId = channel?.id ?? '';
+    if (nextChannelId !== settings.artifactPublish.channelId) {
+      this.preferencesStore.setBridgeSettings({
+        artifactPublish: {
+          channelId: nextChannelId
+        }
+      });
+    }
+    return channel;
+  }
+
+  private async ensureManagedTextChannel(channelId: string, channelName: string, topic: string): Promise<TextChannel | undefined> {
     const existing = channelId ? await this.fetchGuildTextChannel(channelId) : undefined;
 
     if (existing) {
@@ -1040,10 +1130,10 @@ export class DiscordBridgeService {
         throw new Error(`Configured guild ${this.config.guildId} does not match channel ${channelId}.`);
       }
 
-      if (existing.name !== channelName || existing.topic !== desiredTopic) {
+      if (existing.name !== channelName || existing.topic !== topic) {
         await existing.edit({
           name: channelName,
-          topic: desiredTopic
+          topic
         });
       }
       return existing;
@@ -1057,7 +1147,7 @@ export class DiscordBridgeService {
     return guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      topic: desiredTopic
+      topic
     });
   }
 
@@ -1404,7 +1494,12 @@ function parseBridgeDimensionValue(
 }
 
 function isBusyPassthroughMessage(parsed: ParsedBridgeMessage): parsed is BusyPassthroughMessage {
-  return parsed.kind === 'text' || parsed.kind === 'control';
+  return (
+    parsed.kind === 'text' ||
+    parsed.kind === 'control' ||
+    parsed.kind === 'screenshot' ||
+    parsed.kind === 'window-screenshot'
+  );
 }
 
 function shouldActivateTerminalForMessage(parsed: ParsedBridgeMessage): boolean {
@@ -1484,6 +1579,43 @@ function normalizeWorkspaceChannelName(value: string): string {
 
 function buildWorkspaceChannelTopic(slotId: TerminalSlotId, workspaceName: string, cwd: string): string {
   return `PowerShell Discord Bridge slot ${slotId}: "${workspaceName}" (${cwd})`;
+}
+
+function buildArtifactPublishErrorMessage(
+  watchDirectory: string,
+  relativePath: string,
+  fullPath: string,
+  sizeBytes: number,
+  reason: 'file-too-large'
+): string {
+  const reasonText =
+    reason === 'file-too-large' ? 'file exceeds the current Discord upload limit for this bridge.' : 'artifact publish failed.';
+
+  return [
+    '[artifact publish skipped]',
+    `reason: ${reasonText}`,
+    `watch: \`${escapeInlineCode(watchDirectory)}\``,
+    `path: \`${escapeInlineCode(relativePath)}\``,
+    `local: \`${escapeInlineCode(fullPath)}\``,
+    `size: ${formatByteSize(sizeBytes)}`,
+    `updated: ${new Date().toISOString()}`
+  ].join('\n');
+}
+
+function escapeInlineCode(value: string): string {
+  return value.replace(/`/g, '\\`');
+}
+
+function formatByteSize(value: number): string {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 export function normalizeBridgeText(content: string, botUserId?: string): string {

@@ -7,6 +7,7 @@ interface BuildDiffOptions {
   rawOutput: string;
   tailChars: number;
   fallbackLines: number;
+  middleAnchorChars: number;
 }
 
 export class TerminalDiffService {
@@ -15,7 +16,8 @@ export class TerminalDiffService {
     const screenDiff = extractComparableLineDiff(
       options.beforeSnapshot?.screenText ?? '',
       options.afterSnapshot.screenText,
-      options.tailChars
+      options.tailChars,
+      options.middleAnchorChars
     ) ?? '';
 
     if (shouldPreferScreenDiff(normalizedRawOutput, screenDiff, options.afterSnapshot.screenText)) {

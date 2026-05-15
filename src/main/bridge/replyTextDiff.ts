@@ -20,7 +20,12 @@ export function normalizeTerminalText(text: string): string {
     .replace(/[ \t]+$/gm, '');
 }
 
-export function extractComparableLineDiff(beforeText: string | undefined, afterText: string | undefined, maxComparableChars: number): string | undefined {
+export function extractComparableLineDiff(
+  beforeText: string | undefined,
+  afterText: string | undefined,
+  maxComparableChars: number,
+  middleAnchorChars: number
+): string | undefined {
   const normalizedAfter = normalizeTerminalText(afterText ?? '');
   if (!normalizedAfter) {
     return undefined;
@@ -43,7 +48,7 @@ export function extractComparableLineDiff(beforeText: string | undefined, afterT
     return '';
   }
 
-  const anchoredStartIndex = findMiddleAnchorStartIndex(beforeComparable.text, afterComparable.text, diffRange);
+  const anchoredStartIndex = findMiddleAnchorStartIndex(beforeComparable.text, afterComparable.text, diffRange, middleAnchorChars);
   return sliceLineRange(afterLines, afterComparable, anchoredStartIndex, diffRange.endIndex);
 }
 
@@ -130,9 +135,10 @@ function findComparableDiffRange(beforeText: string, afterText: string): { start
 function findMiddleAnchorStartIndex(
   beforeText: string,
   afterText: string,
-  diffRange: { startIndex: number; endIndex: number }
+  diffRange: { startIndex: number; endIndex: number },
+  middleAnchorChars: number
 ): number {
-  const latestAnchorEndIndex = findLatestUniqueAnchorEndIndex(beforeText, afterText, diffRange, COMPARABLE_MIDDLE_ANCHOR_CHARS);
+  const latestAnchorEndIndex = findLatestUniqueAnchorEndIndex(beforeText, afterText, diffRange, middleAnchorChars);
   if (latestAnchorEndIndex === null || latestAnchorEndIndex <= diffRange.startIndex) {
     return diffRange.startIndex;
   }
@@ -192,5 +198,3 @@ function sliceLineRange(lines: string[], stream: ComparableStream, startIndex: n
 
   return lines.slice(startLineIndex, endLineIndex + 1).join('\n');
 }
-
-const COMPARABLE_MIDDLE_ANCHOR_CHARS = 500;

@@ -14,9 +14,14 @@ interface StoredPreferences {
     replyFormat?: BridgeReplyFormat;
     softTimeoutMs?: number;
     hardTimeoutMs?: number | null;
+    diffAnchorChars?: number;
     bridgeDimensions?: {
       cols?: number;
       rows?: number;
+    };
+    artifactPublish?: {
+      watchDirectory?: string;
+      channelId?: string;
     };
     timing?: {
       redrawWaitAfterShrinkMs?: number;
@@ -56,9 +61,14 @@ const DEFAULT_BRIDGE_SETTINGS = {
   replyFormat: 'command' as BridgeReplyFormat,
   softTimeoutMs: 300000,
   hardTimeoutMs: null,
+  diffAnchorChars: 300,
   bridgeDimensions: {
     cols: 100,
     rows: 50
+  },
+  artifactPublish: {
+    watchDirectory: '',
+    channelId: ''
   },
   timing: {
     redrawWaitAfterShrinkMs: 500,
@@ -96,6 +106,8 @@ const MIN_SOFT_TIMEOUT_MS = 1000;
 const MAX_SOFT_TIMEOUT_MS = 300000;
 const MIN_HARD_TIMEOUT_MS = 5000;
 const MAX_HARD_TIMEOUT_MS = 7200000;
+export const MIN_DIFF_ANCHOR_CHARS = 50;
+export const MAX_DIFF_ANCHOR_CHARS = 5000;
 const SLOT_IDS = [1, 2, 3, 4] as const;
 
 export class PreferencesStore {
@@ -191,6 +203,12 @@ export class PreferencesStore {
         MAX_HARD_TIMEOUT_MS,
         DEFAULT_BRIDGE_SETTINGS.hardTimeoutMs
       ),
+      diffAnchorChars: clampInteger(
+        this.state.bridgeSettings?.diffAnchorChars,
+        MIN_DIFF_ANCHOR_CHARS,
+        MAX_DIFF_ANCHOR_CHARS,
+        DEFAULT_BRIDGE_SETTINGS.diffAnchorChars
+      ),
       bridgeDimensions: {
         cols: clampInteger(
           this.state.bridgeSettings?.bridgeDimensions?.cols,
@@ -204,6 +222,10 @@ export class PreferencesStore {
           MAX_BRIDGE_ROWS,
           DEFAULT_BRIDGE_SETTINGS.bridgeDimensions.rows
         )
+      },
+      artifactPublish: {
+        watchDirectory: normalizeArtifactPublishPath(this.state.bridgeSettings?.artifactPublish?.watchDirectory),
+        channelId: normalizeDiscordChannelId(this.state.bridgeSettings?.artifactPublish?.channelId)
       },
       timing: {
         redrawWaitAfterShrinkMs: clampInteger(
@@ -345,11 +367,20 @@ export class PreferencesStore {
       ...(update.replyFormat === undefined ? {} : { replyFormat: update.replyFormat }),
       ...(update.softTimeoutMs === undefined ? {} : { softTimeoutMs: update.softTimeoutMs }),
       ...(update.hardTimeoutMs === undefined ? {} : { hardTimeoutMs: update.hardTimeoutMs === null ? null : update.hardTimeoutMs }),
+      ...(update.diffAnchorChars === undefined ? {} : { diffAnchorChars: update.diffAnchorChars }),
       ...(update.bridgeDimensions
         ? {
             bridgeDimensions: {
               ...this.state.bridgeSettings?.bridgeDimensions,
               ...update.bridgeDimensions
+            }
+          }
+        : {}),
+      ...(update.artifactPublish
+        ? {
+            artifactPublish: {
+              ...this.state.bridgeSettings?.artifactPublish,
+              ...update.artifactPublish
             }
           }
         : {}),
@@ -363,6 +394,23 @@ export class PreferencesStore {
         : {})
     };
     this.save();
+    return this.getBridgeSettings();
+  }
+
+  ensureArtifactPublishDefaults(defaultRootCwd: string): BridgeSettings {
+    const currentWatchDirectory = normalizeArtifactPublishPath(this.state.bridgeSettings?.artifactPublish?.watchDirectory);
+    const nextWatchDirectory =
+      currentWatchDirectory.length > 0 ? currentWatchDirectory : path.resolve(defaultRootCwd, 'discord-publish');
+
+    this.state.bridgeSettings = {
+      ...this.state.bridgeSettings,
+      artifactPublish: {
+        watchDirectory: nextWatchDirectory,
+        channelId: normalizeDiscordChannelId(this.state.bridgeSettings?.artifactPublish?.channelId)
+      }
+    };
+    this.save();
+    mkdirSync(nextWatchDirectory, { recursive: true });
     return this.getBridgeSettings();
   }
 
@@ -432,6 +480,15 @@ function clampNullableInteger(value: number | null | undefined, min: number, max
 
 function normalizeBridgeReplyFormat(value: BridgeReplyFormat | undefined): BridgeReplyFormat {
   return value === 'command' || value === 'plain-text' ? value : DEFAULT_BRIDGE_SETTINGS.replyFormat;
+}
+
+function normalizeArtifactPublishPath(value: string | undefined): string {
+  const normalized = value?.trim();
+  return normalized ? path.resolve(normalized) : DEFAULT_BRIDGE_SETTINGS.artifactPublish.watchDirectory;
+}
+
+function normalizeDiscordChannelId(value: string | undefined): string {
+  return value?.trim() ?? DEFAULT_BRIDGE_SETTINGS.artifactPublish.channelId;
 }
 
 function normalizeWorkspaceName(value: string | undefined, slotId: 1 | 2 | 3 | 4): string {

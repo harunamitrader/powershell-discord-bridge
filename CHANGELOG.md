@@ -16,6 +16,9 @@
 - `!/command` と `!noenterTEXT` の入力モード切り替え
 - Discord 返信形式の `code block` / `plain text` 切り替え
 - hard timeout の unlimited 設定
+- busy 中の `!ss` / `!wss` をキューせず即時キャプチャする動作
+- `discord-publish` 監視フォルダの新規作成・更新ファイルを共通 artifact チャンネルへ自動添付送信する動作
+- screen diff の中間アンカー長を 500 文字から 300 文字へ変更し、設定ファイルからも調整できる項目
 - fallback 返信使用時の `[reply fallback used]` マーカー
 - terminal slot 再起動とアプリ再起動の Discord コマンド
 - アプリ内で main process ログと terminal 入力ログを確認できる Logs オーバーレイ

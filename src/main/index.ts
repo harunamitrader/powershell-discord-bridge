@@ -5,6 +5,7 @@ import { AppLogStore } from './app/appLogStore';
 import { createMainWindow } from './app/createMainWindow';
 import { loadBridgeRuntimeConfig } from './bridge/bridgeConfig';
 import { ChannelSessionRegistry } from './bridge/channelSessionRegistry';
+import { ArtifactPublishService } from './bridge/artifactPublishService';
 import { DiscordBridgeService } from './bridge/discordBridgeService';
 import { TerminalAutomationService } from './bridge/terminalAutomationService';
 import { PreferencesStore } from './app/preferencesStore';
@@ -22,6 +23,7 @@ app.setAppUserModelId(APP_USER_MODEL_ID);
 let mainWindow: BrowserWindow | undefined;
 let terminalSessionManager: TerminalSessionManager | undefined;
 let discordBridgeService: DiscordBridgeService | undefined;
+let artifactPublishService: ArtifactPublishService | undefined;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 async function bootstrap(): Promise<void> {
@@ -45,6 +47,8 @@ async function bootstrap(): Promise<void> {
     () => mainWindow,
     preferencesStore
   );
+  artifactPublishService = new ArtifactPublishService(preferencesStore, terminalSlotService, discordBridgeService);
+  artifactPublishService.initializeDefaults();
 
   terminalSessionManager.on('session-exit', ({ sessionId }) => {
     terminalSlotService.handleSessionExit(sessionId);
@@ -57,9 +61,10 @@ async function bootstrap(): Promise<void> {
     preferencesStore,
     terminalAutomationService,
     terminalSessionManager,
-    terminalSlotService,
-    appLogStore
-  });
+      terminalSlotService,
+      appLogStore,
+      artifactPublishService
+    });
 
   window.once('closed', () => {
     if (mainWindow === window) {
@@ -72,6 +77,7 @@ async function bootstrap(): Promise<void> {
   try {
     await discordBridgeService.start();
     await discordBridgeService.ensureStartupBindings();
+    artifactPublishService.start();
   } catch (error) {
     console.error('Failed to start Discord bridge service', error);
   }
@@ -132,6 +138,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  artifactPublishService?.stop();
   discordBridgeService?.stop();
   terminalSessionManager?.disposeAll();
 });

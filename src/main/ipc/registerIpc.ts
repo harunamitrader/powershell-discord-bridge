@@ -32,6 +32,7 @@ import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import { TerminalSlotService } from '../app/terminalSlotService';
 import { AppLogStore } from '../app/appLogStore';
+import { ArtifactPublishService } from '../bridge/artifactPublishService';
 
 interface RegisterIpcOptions {
   discordBridgeService: DiscordBridgeService;
@@ -41,10 +42,20 @@ interface RegisterIpcOptions {
   terminalSessionManager: TerminalSessionManager;
   terminalSlotService: TerminalSlotService;
   appLogStore: AppLogStore;
+  artifactPublishService: ArtifactPublishService;
 }
 
 export function registerIpc(options: RegisterIpcOptions): void {
-  const { window, preferencesStore, terminalAutomationService, terminalSessionManager, discordBridgeService, terminalSlotService, appLogStore } = options;
+  const {
+    window,
+    preferencesStore,
+    terminalAutomationService,
+    terminalSessionManager,
+    discordBridgeService,
+    terminalSlotService,
+    appLogStore,
+    artifactPublishService
+  } = options;
 
   const sendToRenderer = (channel: string, payload: unknown): void => {
     if (window.isDestroyed()) {
@@ -164,6 +175,7 @@ export function registerIpc(options: RegisterIpcOptions): void {
   ipcMain.handle('terminal:update-bridge-settings', async (_event, update: BridgeSettingsUpdate): Promise<BridgeSettings> => {
     const settings = preferencesStore.setBridgeSettings(update);
     terminalSessionManager.applyBridgeSettings();
+    artifactPublishService.refreshFromSettings();
     return settings;
   });
 
