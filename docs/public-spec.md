@@ -1,5 +1,7 @@
 # PowerShell Discord Bridge 公開仕様書
 
+**Language:** 日本語 | [English](public-spec.en.md)
+
 ## 1. 概要
 
 PowerShell Discord Bridge は、**Windows PC 上の PowerShell を Discord から操作するための Electron アプリ**です。  

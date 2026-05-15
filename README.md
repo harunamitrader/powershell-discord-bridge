@@ -1,5 +1,7 @@
 # PowerShell Discord Bridge
 
+**Language:** 日本語 | [English](README.en.md)
+
 <p align="center">
   <img src="docs/images/readme-header.png" alt="PowerShell Discord Bridge header" />
 </p>
@@ -295,7 +297,9 @@ Get-Location
 
 ## 公開ドキュメント
 
+- English README: `README.en.md`
 - 公開仕様書: `docs/public-spec.md`
+- English public spec: `docs/public-spec.en.md`
 - 更新履歴: `CHANGELOG.md`
 
 ## ライセンス
