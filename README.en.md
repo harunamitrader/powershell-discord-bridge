@@ -79,15 +79,18 @@ If you do not use Git, download the repository from **Code > Download ZIP** on G
 3. Add a **Bot**
 4. Generate and save the bot token
 5. Enable **MESSAGE CONTENT INTENT**
-6. Use the OAuth2 URL Generator to create an invite URL and invite the bot to your Discord server
+6. In the OAuth2 URL Generator, select the **bot** scope, choose the required permissions, create an invite URL, and invite the bot to your Discord server
 
 At minimum, the bot needs these permissions:
 
-- View the target channel
-- Read messages
-- Send messages
-- Attach files
-- Add reactions
+- **View Channels**
+- **Send Messages**
+- **Attach Files**
+- **Add Reactions**
+- **Manage Channels** (if you want automatic channel creation, renaming, or topic updates)
+
+This app can **auto-create, reuse, and rename** the slot channels and the shared artifact channel `terminal-artifacts`.
+If you use that behavior, **Manage Channels** is required. If you create the channels yourself and set the channel IDs manually, you can avoid granting that permission.
 
 ### 3. Enable copying IDs in Discord
 

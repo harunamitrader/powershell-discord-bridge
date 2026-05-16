@@ -101,6 +101,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
 - `ALLOW_GUILD_ID` can optionally restrict operation to a single guild
+- If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
 - Each slot stores its Discord channel ID and reconnects to the same channel after restart
 - If a slot has no channel ID, the app auto-creates a Discord channel at startup or when settings are saved
 - The shared artifact channel `terminal-artifacts` is also auto-created or reused at startup
