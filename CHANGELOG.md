@@ -12,9 +12,11 @@
 - Settings / `preferences.json` で bridge timing に加えて completion / screenshot / restart / attachment download timeout も調整できる設定項目
 - `!up`, `!down` で矢印キーを送るコマンド
 - `!up N`, `!down N` と `!upN`, `!downN` の連続矢印キーコマンド
+- `!left`, `!right`, `!left N`, `!right N`, `!leftN`, `!rightN` の左右矢印キーコマンド
 - `!replyformat`, `!replyformatcommand`, `!replyformattext` コマンド
 - `!redraw` で Discord から terminal の手動再描画 jiggle を実行するコマンド
 - `!/command` と `!noenterTEXT` の入力モード切り替え
+- 通常の text / control リクエストが delay 以上完了しないときに、途中確認用の terminal スクリーンショットを 1 回返す動作（既定 ON / delay 設定可）
 - Discord 返信形式の `code block` / `plain text` 切り替え
 - hard timeout の unlimited 設定
 - busy 中の `!ss` / `!wss` をキューせず即時キャプチャする動作
@@ -32,6 +34,8 @@
 - busy 中の Discord text/control 入力は、キューせず実行中セッションへ直接送る仕様に変更
 - busy 中でもローカル UI から入力できるよう変更
 - 通常の text 送信前待機を延長し、before-send 再描画後・snapshot 後・Enter 前の各間隔を広げて Copilot/TUI への入力反映を待ちやすく変更
+- Discord からの text / control 入力前には、アプリウィンドウが非アクティブまたは最小化なら best-effort で復元・前面化してから送るよう変更
+- Settings の Global セクションを機能別グループに整理し、説明文を English に統一
 - interactive CLI の完了判定は、Gemini 固有の TUI マーカーではなく汎用の prompt / output / idle 信号を優先するよう変更
 - hard timeout 到達時は自動リセットせず、timeout 応答だけ返す仕様に変更
 - Settings の timeout 表示単位を ms から s に変更

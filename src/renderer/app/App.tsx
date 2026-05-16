@@ -12,6 +12,7 @@ import { TerminalViewport } from '../components/TerminalViewport';
 
 interface SettingsDraft {
   autoScreenshotOnReply: boolean;
+  inflightScreenshotOnRunningRequest: boolean;
   replyFormat: BridgeReplyFormat;
   softTimeoutSeconds: string;
   hardTimeoutSeconds: string;
@@ -20,6 +21,7 @@ interface SettingsDraft {
   diffAnchorChars: string;
   bridgeCols: string;
   bridgeRows: string;
+  inflightScreenshotDelayMs: string;
   redrawWaitAfterShrinkMs: string;
   beforeSendRedrawRestoreMs: string;
   afterCompleteRedrawRestoreMs: string;
@@ -47,6 +49,7 @@ type SettingsNumericField =
   | 'diffAnchorChars'
   | 'bridgeCols'
   | 'bridgeRows'
+  | 'inflightScreenshotDelayMs'
   | 'redrawWaitAfterShrinkMs'
   | 'beforeSendRedrawRestoreMs'
   | 'afterCompleteRedrawRestoreMs'
@@ -100,6 +103,7 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [bridgeSettings, setBridgeSettings] = useState<BridgeSettings>({
     autoScreenshotOnReply: true,
+    inflightScreenshotOnRunningRequest: true,
     replyFormat: 'command',
     softTimeoutMs: 300000,
     hardTimeoutMs: null,
@@ -113,6 +117,7 @@ export function App() {
       channelId: ''
     },
     timing: {
+      inflightScreenshotDelayMs: 10000,
       redrawWaitAfterShrinkMs: 500,
       beforeSendRedrawRestoreMs: 1500,
       afterCompleteRedrawRestoreMs: 1000,
@@ -138,6 +143,7 @@ export function App() {
   });
   const [settingsDraft, setSettingsDraft] = useState<SettingsDraft>({
     autoScreenshotOnReply: true,
+    inflightScreenshotOnRunningRequest: true,
     replyFormat: 'command',
     softTimeoutSeconds: '300',
     hardTimeoutSeconds: String(DEFAULT_HARD_TIMEOUT_SECONDS),
@@ -146,6 +152,7 @@ export function App() {
     diffAnchorChars: '300',
     bridgeCols: '100',
     bridgeRows: '50',
+    inflightScreenshotDelayMs: '10000',
     redrawWaitAfterShrinkMs: '500',
     beforeSendRedrawRestoreMs: '1500',
     afterCompleteRedrawRestoreMs: '1000',
@@ -305,6 +312,11 @@ export function App() {
     const diffAnchorChars = parseBoundedInteger(settingsDraft.diffAnchorChars, MIN_DIFF_ANCHOR_CHARS, MAX_DIFF_ANCHOR_CHARS);
     const cols = parseBoundedInteger(settingsDraft.bridgeCols, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS);
     const rows = parseBoundedInteger(settingsDraft.bridgeRows, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS);
+    const inflightScreenshotDelayMs = parseBoundedInteger(
+      settingsDraft.inflightScreenshotDelayMs,
+      MIN_TIMING_DELAY_MS,
+      MAX_TIMING_DELAY_MS
+    );
     const artifactWatchDirectory = settingsDraft.artifactWatchDirectory.trim();
     const redrawWaitAfterShrinkMs = parseBoundedInteger(settingsDraft.redrawWaitAfterShrinkMs, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS);
     const beforeSendRedrawRestoreMs = parseBoundedInteger(
@@ -405,7 +417,7 @@ export function App() {
     );
 
     if (artifactWatchDirectory.length === 0) {
-      setSettingsError('Artifact publish folder を入力してください。');
+      setSettingsError('Enter an artifact publish folder.');
       return;
     }
 
@@ -415,6 +427,7 @@ export function App() {
       !Number.isFinite(diffAnchorChars) ||
       !Number.isFinite(cols) ||
       !Number.isFinite(rows) ||
+      !Number.isFinite(inflightScreenshotDelayMs) ||
       !Number.isFinite(redrawWaitAfterShrinkMs) ||
       !Number.isFinite(beforeSendRedrawRestoreMs) ||
       !Number.isFinite(afterCompleteRedrawRestoreMs) ||
@@ -437,7 +450,7 @@ export function App() {
       !Number.isFinite(appRestartDelayMs) ||
       !Number.isFinite(attachmentDownloadTimeoutMs)
     ) {
-      setSettingsError('数値設定を確認してください。');
+      setSettingsError('Check the numeric settings.');
       return;
     }
 
@@ -448,6 +461,7 @@ export function App() {
     try {
       const updatedBridgeSettings = await window.terminalApp.updateBridgeSettings({
         autoScreenshotOnReply: settingsDraft.autoScreenshotOnReply,
+        inflightScreenshotOnRunningRequest: settingsDraft.inflightScreenshotOnRunningRequest,
         replyFormat: settingsDraft.replyFormat,
         softTimeoutMs,
         hardTimeoutMs,
@@ -460,6 +474,7 @@ export function App() {
           rows
         },
         timing: {
+          inflightScreenshotDelayMs,
           redrawWaitAfterShrinkMs,
           beforeSendRedrawRestoreMs,
           afterCompleteRedrawRestoreMs,
@@ -506,7 +521,7 @@ export function App() {
           : current
       );
       setSettingsOpen(false);
-      setFeedback('設定を保存しました。');
+      setFeedback('Settings saved.');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setSettingsError(message);
@@ -745,756 +760,864 @@ export function App() {
             <div className="settings-screen__content">
               <section className="settings-section">
                 <h2 className="settings-section__title">Global</h2>
-                <label className="settings-toggle">
-                  <input
-                    type="checkbox"
-                    checked={settingsDraft.autoScreenshotOnReply}
-                    onChange={(event) =>
-                      setSettingsDraft((current) => ({
-                        ...current,
-                        autoScreenshotOnReply: event.target.checked
-                      }))
-                    }
-                  />
-                  <div className="settings-toggle__body">
-                    <div className="settings-toggle__title">Auto screenshot after reply</div>
-                    <div className="settings-toggle__description">Discord の各完了返信のあとに、アプリ画面全体を追加で送信します。</div>
-                  </div>
-                </label>
-
                 <div className="settings-form">
-                  <label className="settings-field">
-                    <span className="settings-field__label">Discord reply format</span>
-                    <select
-                      className="settings-field__input"
-                      value={settingsDraft.replyFormat}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          replyFormat: event.target.value as BridgeReplyFormat
-                        }))
-                      }
-                    >
-                      <option value="command">Code block</option>
-                      <option value="plain-text">Plain text</option>
-                    </select>
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field__label">Soft timeout (s)</span>
-                    <input
-                      className="settings-field__input"
-                      type="number"
-                      min={MIN_SOFT_TIMEOUT_SECONDS}
-                      max={MAX_SOFT_TIMEOUT_SECONDS}
-                      step={1}
-                      value={settingsDraft.softTimeoutSeconds}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          softTimeoutSeconds: event.target.value
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field__label">Hard timeout (s)</span>
-                    <input
-                      className="settings-field__input"
-                      type="number"
-                      min={MIN_HARD_TIMEOUT_SECONDS}
-                      max={MAX_HARD_TIMEOUT_SECONDS}
-                      step={1}
-                      value={settingsDraft.hardTimeoutSeconds}
-                      disabled={settingsDraft.hardTimeoutUnlimited}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          hardTimeoutSeconds: event.target.value
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={settingsDraft.hardTimeoutUnlimited}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          hardTimeoutUnlimited: event.target.checked
-                        }))
-                      }
-                    />
-                    <div className="settings-toggle__body">
-                      <span className="settings-toggle__title">Unlimited hard timeout</span>
-                      <span className="settings-toggle__description">Disable forced timeout and wait until completion or manual stop.</span>
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">Replies and visibility</h3>
+                      <p className="settings-group__description">Control how Discord replies, interim screenshots, and diff extraction are presented.</p>
                     </div>
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field__label">Artifact publish folder</span>
-                    <input
-                      className="settings-field__input"
-                      type="text"
-                      value={settingsDraft.artifactWatchDirectory}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          artifactWatchDirectory: event.target.value
-                        }))
-                      }
-                      placeholder="C:\\path\\to\\discord-publish"
-                    />
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field__label">Artifact channel</span>
-                    <input
-                      className="settings-field__input"
-                      type="text"
-                      value={bridgeSettings.artifactPublish.channelId || 'Auto-create on Discord connect'}
-                      readOnly
-                    />
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field__label">{`Screen diff anchor chars (${MIN_DIFF_ANCHOR_CHARS}-${MAX_DIFF_ANCHOR_CHARS})`}</span>
-                    <input
-                      className="settings-field__input"
-                      type="number"
-                      min={MIN_DIFF_ANCHOR_CHARS}
-                      max={MAX_DIFF_ANCHOR_CHARS}
-                      step={1}
-                      value={settingsDraft.diffAnchorChars}
-                      onChange={(event) =>
-                        updateBoundedIntegerDraft(
-                          setSettingsDraft,
-                          'diffAnchorChars',
-                          event.target.value,
-                          MIN_DIFF_ANCHOR_CHARS,
-                          MAX_DIFF_ANCHOR_CHARS
-                        )
-                      }
-                      onBlur={() =>
-                        clampBoundedIntegerDraft(
-                          setSettingsDraft,
-                          'diffAnchorChars',
-                          settingsDraft.diffAnchorChars,
-                          MIN_DIFF_ANCHOR_CHARS,
-                          MAX_DIFF_ANCHOR_CHARS
-                        )
-                      }
-                    />
-                  </label>
-                  <div className="settings-grid">
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Bridge cols (${MIN_BRIDGE_COLS}-${MAX_BRIDGE_COLS})`}</span>
+                    <label className="settings-toggle">
                       <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_BRIDGE_COLS}
-                        max={MAX_BRIDGE_COLS}
-                        step={1}
-                        value={settingsDraft.bridgeCols}
-                        onChange={(event) => updateBoundedIntegerDraft(setSettingsDraft, 'bridgeCols', event.target.value, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS)}
-                        onBlur={() => clampBoundedIntegerDraft(setSettingsDraft, 'bridgeCols', settingsDraft.bridgeCols, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS)}
+                        type="checkbox"
+                        checked={settingsDraft.autoScreenshotOnReply}
+                        onChange={(event) =>
+                          setSettingsDraft((current) => ({
+                            ...current,
+                            autoScreenshotOnReply: event.target.checked
+                          }))
+                        }
                       />
+                      <div className="settings-toggle__body">
+                        <div className="settings-toggle__title">Auto screenshot after reply</div>
+                        <div className="settings-toggle__description">Attach an app-window screenshot after each completed Discord reply.</div>
+                      </div>
                     </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Bridge rows (${MIN_BRIDGE_ROWS}-${MAX_BRIDGE_ROWS})`}</span>
+                    <label className="settings-toggle">
                       <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_BRIDGE_ROWS}
-                        max={MAX_BRIDGE_ROWS}
-                        step={1}
-                        value={settingsDraft.bridgeRows}
-                        onChange={(event) => updateBoundedIntegerDraft(setSettingsDraft, 'bridgeRows', event.target.value, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS)}
-                        onBlur={() => clampBoundedIntegerDraft(setSettingsDraft, 'bridgeRows', settingsDraft.bridgeRows, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS)}
+                        type="checkbox"
+                        checked={settingsDraft.inflightScreenshotOnRunningRequest}
+                        onChange={(event) =>
+                          setSettingsDraft((current) => ({
+                            ...current,
+                            inflightScreenshotOnRunningRequest: event.target.checked
+                          }))
+                        }
                       />
+                      <div className="settings-toggle__body">
+                        <div className="settings-toggle__title">Delayed inflight terminal screenshot</div>
+                        <div className="settings-toggle__description">
+                          Send one interim terminal screenshot when a text or control request is still running after the configured delay.
+                        </div>
+                      </div>
+                    </label>
+                    <div className="settings-grid settings-grid--compact">
+                      <label className="settings-field">
+                        <span className="settings-field__label">Discord reply format</span>
+                        <select
+                          className="settings-field__input"
+                          value={settingsDraft.replyFormat}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              replyFormat: event.target.value as BridgeReplyFormat
+                            }))
+                          }
+                        >
+                          <option value="command">Code block</option>
+                          <option value="plain-text">Plain text</option>
+                        </select>
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Inflight screenshot delay (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.inflightScreenshotDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'inflightScreenshotDelayMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'inflightScreenshotDelayMs',
+                              settingsDraft.inflightScreenshotDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Screen diff anchor chars (${MIN_DIFF_ANCHOR_CHARS}-${MAX_DIFF_ANCHOR_CHARS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_DIFF_ANCHOR_CHARS}
+                          max={MAX_DIFF_ANCHOR_CHARS}
+                          step={1}
+                          value={settingsDraft.diffAnchorChars}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'diffAnchorChars',
+                              event.target.value,
+                              MIN_DIFF_ANCHOR_CHARS,
+                              MAX_DIFF_ANCHOR_CHARS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'diffAnchorChars',
+                              settingsDraft.diffAnchorChars,
+                              MIN_DIFF_ANCHOR_CHARS,
+                              MAX_DIFF_ANCHOR_CHARS
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">Session limits</h3>
+                      <p className="settings-group__description">Tune how long the bridge waits before considering a request stalled or timed out.</p>
+                    </div>
+                    <div className="settings-grid settings-grid--compact">
+                      <label className="settings-field">
+                        <span className="settings-field__label">Soft timeout (s)</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_SOFT_TIMEOUT_SECONDS}
+                          max={MAX_SOFT_TIMEOUT_SECONDS}
+                          step={1}
+                          value={settingsDraft.softTimeoutSeconds}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              softTimeoutSeconds: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">Hard timeout (s)</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_HARD_TIMEOUT_SECONDS}
+                          max={MAX_HARD_TIMEOUT_SECONDS}
+                          step={1}
+                          value={settingsDraft.hardTimeoutSeconds}
+                          disabled={settingsDraft.hardTimeoutUnlimited}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              hardTimeoutSeconds: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label className="settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={settingsDraft.hardTimeoutUnlimited}
+                        onChange={(event) =>
+                          setSettingsDraft((current) => ({
+                            ...current,
+                            hardTimeoutUnlimited: event.target.checked
+                          }))
+                        }
+                      />
+                      <div className="settings-toggle__body">
+                        <span className="settings-toggle__title">Unlimited hard timeout</span>
+                        <span className="settings-toggle__description">Disable the forced timeout and wait until completion or manual stop.</span>
+                      </div>
                     </label>
                   </div>
-                  <div className="settings-grid">
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Redraw shrink wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.redrawWaitAfterShrinkMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(setSettingsDraft, 'redrawWaitAfterShrinkMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'redrawWaitAfterShrinkMs',
-                            settingsDraft.redrawWaitAfterShrinkMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Before-send redraw restore (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.beforeSendRedrawRestoreMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(setSettingsDraft, 'beforeSendRedrawRestoreMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'beforeSendRedrawRestoreMs',
-                            settingsDraft.beforeSendRedrawRestoreMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`After-complete redraw restore (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.afterCompleteRedrawRestoreMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'afterCompleteRedrawRestoreMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'afterCompleteRedrawRestoreMs',
-                            settingsDraft.afterCompleteRedrawRestoreMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Before-send post-redraw wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.beforeSendPostRedrawDelayMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'beforeSendPostRedrawDelayMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'beforeSendPostRedrawDelayMs',
-                            settingsDraft.beforeSendPostRedrawDelayMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Pre-input snapshot wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.preTextInputSnapshotDelayMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'preTextInputSnapshotDelayMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'preTextInputSnapshotDelayMs',
-                            settingsDraft.preTextInputSnapshotDelayMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Text-to-Enter wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.textSubmitEnterDelayMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'textSubmitEnterDelayMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'textSubmitEnterDelayMs',
-                            settingsDraft.textSubmitEnterDelayMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Repeat key interval (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.repeatedControlKeyDelayMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'repeatedControlKeyDelayMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'repeatedControlKeyDelayMs',
-                            settingsDraft.repeatedControlKeyDelayMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
+
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">Layout and artifact publishing</h3>
+                      <p className="settings-group__description">Set the fixed bridge size and the shared folder and channel used for artifact uploads.</p>
+                    </div>
+                    <div className="settings-grid settings-grid--compact">
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Bridge cols (${MIN_BRIDGE_COLS}-${MAX_BRIDGE_COLS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_BRIDGE_COLS}
+                          max={MAX_BRIDGE_COLS}
+                          step={1}
+                          value={settingsDraft.bridgeCols}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'bridgeCols', event.target.value, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(setSettingsDraft, 'bridgeCols', settingsDraft.bridgeCols, MIN_BRIDGE_COLS, MAX_BRIDGE_COLS)
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Bridge rows (${MIN_BRIDGE_ROWS}-${MAX_BRIDGE_ROWS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_BRIDGE_ROWS}
+                          max={MAX_BRIDGE_ROWS}
+                          step={1}
+                          value={settingsDraft.bridgeRows}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'bridgeRows', event.target.value, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(setSettingsDraft, 'bridgeRows', settingsDraft.bridgeRows, MIN_BRIDGE_ROWS, MAX_BRIDGE_ROWS)
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">Artifact publish folder</span>
+                        <input
+                          className="settings-field__input"
+                          type="text"
+                          value={settingsDraft.artifactWatchDirectory}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              artifactWatchDirectory: event.target.value
+                            }))
+                          }
+                          placeholder="C:\\path\\to\\discord-publish"
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">Artifact channel</span>
+                        <input
+                          className="settings-field__input"
+                          type="text"
+                          value={bridgeSettings.artifactPublish.channelId || 'Auto-create on Discord connect'}
+                          readOnly
+                        />
+                      </label>
+                    </div>
                   </div>
-                  <div className="settings-grid">
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Completion settle (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.completionSettleMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(setSettingsDraft, 'completionSettleMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'completionSettleMs',
-                            settingsDraft.completionSettleMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Completion no-output timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.completionNoOutputTimeoutMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'completionNoOutputTimeoutMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'completionNoOutputTimeoutMs',
-                            settingsDraft.completionNoOutputTimeoutMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Completion poll interval (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.completionPollIntervalMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'completionPollIntervalMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'completionPollIntervalMs',
-                            settingsDraft.completionPollIntervalMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Completion stable polls (${MIN_TIMING_COUNT}-${MAX_TIMING_COUNT})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_COUNT}
-                        max={MAX_TIMING_COUNT}
-                        step={1}
-                        value={settingsDraft.completionStablePollCount}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(setSettingsDraft, 'completionStablePollCount', event.target.value, MIN_TIMING_COUNT, MAX_TIMING_COUNT)
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'completionStablePollCount',
-                            settingsDraft.completionStablePollCount,
-                            MIN_TIMING_COUNT,
-                            MAX_TIMING_COUNT
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Manual redraw shrink wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.manualRedrawWaitAfterShrinkMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'manualRedrawWaitAfterShrinkMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'manualRedrawWaitAfterShrinkMs',
-                            settingsDraft.manualRedrawWaitAfterShrinkMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Manual redraw restore wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.manualRedrawWaitAfterRestoreMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'manualRedrawWaitAfterRestoreMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'manualRedrawWaitAfterRestoreMs',
-                            settingsDraft.manualRedrawWaitAfterRestoreMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
+
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">Input and redraw timing</h3>
+                      <p className="settings-group__description">Adjust waits around redraw, snapshots, text submission, and repeated control-key input.</p>
+                    </div>
+                    <div className="settings-grid">
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Redraw shrink wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.redrawWaitAfterShrinkMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'redrawWaitAfterShrinkMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'redrawWaitAfterShrinkMs',
+                              settingsDraft.redrawWaitAfterShrinkMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Before-send redraw restore (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.beforeSendRedrawRestoreMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'beforeSendRedrawRestoreMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'beforeSendRedrawRestoreMs',
+                              settingsDraft.beforeSendRedrawRestoreMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Before-send post-redraw wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.beforeSendPostRedrawDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'beforeSendPostRedrawDelayMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'beforeSendPostRedrawDelayMs',
+                              settingsDraft.beforeSendPostRedrawDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Pre-input snapshot wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.preTextInputSnapshotDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'preTextInputSnapshotDelayMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'preTextInputSnapshotDelayMs',
+                              settingsDraft.preTextInputSnapshotDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Text-to-Enter wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.textSubmitEnterDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'textSubmitEnterDelayMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'textSubmitEnterDelayMs',
+                              settingsDraft.textSubmitEnterDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Repeat key interval (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.repeatedControlKeyDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'repeatedControlKeyDelayMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'repeatedControlKeyDelayMs',
+                              settingsDraft.repeatedControlKeyDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`After-complete redraw restore (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.afterCompleteRedrawRestoreMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'afterCompleteRedrawRestoreMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'afterCompleteRedrawRestoreMs',
+                              settingsDraft.afterCompleteRedrawRestoreMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Manual redraw shrink wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.manualRedrawWaitAfterShrinkMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'manualRedrawWaitAfterShrinkMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'manualRedrawWaitAfterShrinkMs',
+                              settingsDraft.manualRedrawWaitAfterShrinkMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Manual redraw restore wait (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.manualRedrawWaitAfterRestoreMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'manualRedrawWaitAfterRestoreMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'manualRedrawWaitAfterRestoreMs',
+                              settingsDraft.manualRedrawWaitAfterRestoreMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
                   </div>
-                  <div className="settings-grid">
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Live view publish debounce (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.liveViewSnapshotDebounceMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'liveViewSnapshotDebounceMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'liveViewSnapshotDebounceMs',
-                            settingsDraft.liveViewSnapshotDebounceMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Snapshot mirror flush timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.snapshotMirrorFlushTimeoutMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'snapshotMirrorFlushTimeoutMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'snapshotMirrorFlushTimeoutMs',
-                            settingsDraft.snapshotMirrorFlushTimeoutMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Window screenshot delay (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.windowScreenshotCaptureDelayMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'windowScreenshotCaptureDelayMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'windowScreenshotCaptureDelayMs',
-                            settingsDraft.windowScreenshotCaptureDelayMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Terminal screenshot resize settle (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.terminalScreenshotResizeSettleMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'terminalScreenshotResizeSettleMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'terminalScreenshotResizeSettleMs',
-                            settingsDraft.terminalScreenshotResizeSettleMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Terminal screenshot poll interval (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.terminalScreenshotPollIntervalMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'terminalScreenshotPollIntervalMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'terminalScreenshotPollIntervalMs',
-                            settingsDraft.terminalScreenshotPollIntervalMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Terminal screenshot ready timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.terminalScreenshotReadyTimeoutMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'terminalScreenshotReadyTimeoutMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'terminalScreenshotReadyTimeoutMs',
-                            settingsDraft.terminalScreenshotReadyTimeoutMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`App restart delay (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.appRestartDelayMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(setSettingsDraft, 'appRestartDelayMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'appRestartDelayMs',
-                            settingsDraft.appRestartDelayMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span className="settings-field__label">{`Attachment download timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
-                      <input
-                        className="settings-field__input"
-                        type="number"
-                        min={MIN_TIMING_DELAY_MS}
-                        max={MAX_TIMING_DELAY_MS}
-                        step={1}
-                        value={settingsDraft.attachmentDownloadTimeoutMs}
-                        onChange={(event) =>
-                          updateBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'attachmentDownloadTimeoutMs',
-                            event.target.value,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                        onBlur={() =>
-                          clampBoundedIntegerDraft(
-                            setSettingsDraft,
-                            'attachmentDownloadTimeoutMs',
-                            settingsDraft.attachmentDownloadTimeoutMs,
-                            MIN_TIMING_DELAY_MS,
-                            MAX_TIMING_DELAY_MS
-                          )
-                        }
-                      />
-                    </label>
+
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">Completion detection</h3>
+                      <p className="settings-group__description">Tune the polling and stabilization rules used to decide when terminal work has finished.</p>
+                    </div>
+                    <div className="settings-grid settings-grid--compact">
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Completion settle (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.completionSettleMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'completionSettleMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'completionSettleMs',
+                              settingsDraft.completionSettleMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Completion no-output timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.completionNoOutputTimeoutMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'completionNoOutputTimeoutMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'completionNoOutputTimeoutMs',
+                              settingsDraft.completionNoOutputTimeoutMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Completion poll interval (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.completionPollIntervalMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'completionPollIntervalMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'completionPollIntervalMs',
+                              settingsDraft.completionPollIntervalMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Completion stable polls (${MIN_TIMING_COUNT}-${MAX_TIMING_COUNT})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_COUNT}
+                          max={MAX_TIMING_COUNT}
+                          step={1}
+                          value={settingsDraft.completionStablePollCount}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'completionStablePollCount', event.target.value, MIN_TIMING_COUNT, MAX_TIMING_COUNT)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'completionStablePollCount',
+                              settingsDraft.completionStablePollCount,
+                              MIN_TIMING_COUNT,
+                              MAX_TIMING_COUNT
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">Live view and capture</h3>
+                      <p className="settings-group__description">Configure live snapshot publishing and screenshot capture timings used by the app and bridge.</p>
+                    </div>
+                    <div className="settings-grid">
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Live view publish debounce (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.liveViewSnapshotDebounceMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'liveViewSnapshotDebounceMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'liveViewSnapshotDebounceMs',
+                              settingsDraft.liveViewSnapshotDebounceMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Snapshot mirror flush timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.snapshotMirrorFlushTimeoutMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'snapshotMirrorFlushTimeoutMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'snapshotMirrorFlushTimeoutMs',
+                              settingsDraft.snapshotMirrorFlushTimeoutMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Window screenshot delay (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.windowScreenshotCaptureDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'windowScreenshotCaptureDelayMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'windowScreenshotCaptureDelayMs',
+                              settingsDraft.windowScreenshotCaptureDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Terminal screenshot resize settle (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.terminalScreenshotResizeSettleMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'terminalScreenshotResizeSettleMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'terminalScreenshotResizeSettleMs',
+                              settingsDraft.terminalScreenshotResizeSettleMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Terminal screenshot poll interval (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.terminalScreenshotPollIntervalMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'terminalScreenshotPollIntervalMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'terminalScreenshotPollIntervalMs',
+                              settingsDraft.terminalScreenshotPollIntervalMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Terminal screenshot ready timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.terminalScreenshotReadyTimeoutMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'terminalScreenshotReadyTimeoutMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'terminalScreenshotReadyTimeoutMs',
+                              settingsDraft.terminalScreenshotReadyTimeoutMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="settings-group">
+                    <div className="settings-group__header">
+                      <h3 className="settings-group__title">System operations</h3>
+                      <p className="settings-group__description">Adjust the waits used when restarting the app and downloading Discord attachments.</p>
+                    </div>
+                    <div className="settings-grid settings-grid--compact">
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`App restart delay (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.appRestartDelayMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(setSettingsDraft, 'appRestartDelayMs', event.target.value, MIN_TIMING_DELAY_MS, MAX_TIMING_DELAY_MS)
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'appRestartDelayMs',
+                              settingsDraft.appRestartDelayMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field__label">{`Attachment download timeout (ms, ${MIN_TIMING_DELAY_MS}-${MAX_TIMING_DELAY_MS})`}</span>
+                        <input
+                          className="settings-field__input"
+                          type="number"
+                          min={MIN_TIMING_DELAY_MS}
+                          max={MAX_TIMING_DELAY_MS}
+                          step={1}
+                          value={settingsDraft.attachmentDownloadTimeoutMs}
+                          onChange={(event) =>
+                            updateBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'attachmentDownloadTimeoutMs',
+                              event.target.value,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                          onBlur={() =>
+                            clampBoundedIntegerDraft(
+                              setSettingsDraft,
+                              'attachmentDownloadTimeoutMs',
+                              settingsDraft.attachmentDownloadTimeoutMs,
+                              MIN_TIMING_DELAY_MS,
+                              MAX_TIMING_DELAY_MS
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -1561,6 +1684,7 @@ export function App() {
 function createSettingsDraft(bridgeSettings: BridgeSettings): SettingsDraft {
   return {
     autoScreenshotOnReply: bridgeSettings.autoScreenshotOnReply,
+    inflightScreenshotOnRunningRequest: bridgeSettings.inflightScreenshotOnRunningRequest,
     replyFormat: bridgeSettings.replyFormat,
     softTimeoutSeconds: String(Math.round(bridgeSettings.softTimeoutMs / 1000)),
     hardTimeoutSeconds:
@@ -1570,6 +1694,7 @@ function createSettingsDraft(bridgeSettings: BridgeSettings): SettingsDraft {
     diffAnchorChars: String(bridgeSettings.diffAnchorChars),
     bridgeCols: String(bridgeSettings.bridgeDimensions.cols),
     bridgeRows: String(bridgeSettings.bridgeDimensions.rows),
+    inflightScreenshotDelayMs: String(bridgeSettings.timing.inflightScreenshotDelayMs),
     redrawWaitAfterShrinkMs: String(bridgeSettings.timing.redrawWaitAfterShrinkMs),
     beforeSendRedrawRestoreMs: String(bridgeSettings.timing.beforeSendRedrawRestoreMs),
     afterCompleteRedrawRestoreMs: String(bridgeSettings.timing.afterCompleteRedrawRestoreMs),

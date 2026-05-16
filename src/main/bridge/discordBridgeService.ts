@@ -61,6 +61,7 @@ const ARTIFACT_CHANNEL_NAME = 'terminal-artifacts';
 const ARTIFACT_CHANNEL_TOPIC = 'PowerShell Discord Bridge watched file uploads.';
 const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
+const MAIN_WINDOW_ACTIVATION_SETTLE_MS = 200;
 const HELP_REPLY = [
   'Bridge commands:',
   '!help',
@@ -72,6 +73,8 @@ const HELP_REPLY = [
   '!enter',
   `!up / !up N / !upN (${REPEATED_ARROW_MIN_COUNT}-${REPEATED_ARROW_MAX_COUNT})`,
   `!down / !down N / !downN (${REPEATED_ARROW_MIN_COUNT}-${REPEATED_ARROW_MAX_COUNT})`,
+  `!left / !left N / !leftN (${REPEATED_ARROW_MIN_COUNT}-${REPEATED_ARROW_MAX_COUNT})`,
+  `!right / !right N / !rightN (${REPEATED_ARROW_MIN_COUNT}-${REPEATED_ARROW_MAX_COUNT})`,
   '!esc',
   '!ctrlc / !ctrl-c',
   '!screenshot / !ss',
@@ -111,6 +114,10 @@ interface ProcessingLogEntry {
 
 interface RequestContext {
   message: Message;
+}
+
+interface DelayedInflightScreenshotHandle {
+  cancel(): void;
 }
 
 type ParsedBridgeMessage =
@@ -562,6 +569,7 @@ export class DiscordBridgeService {
 
     try {
       if (parsed.kind === 'text') {
+        await this.ensureMainWindowReadyForTerminalInput();
         await this.terminalAutomationService.sendInput({
           sessionId,
           content: parsed.content,
@@ -569,6 +577,7 @@ export class DiscordBridgeService {
           source: 'bridge'
         });
       } else if (parsed.kind === 'control') {
+        await this.ensureMainWindowReadyForTerminalInput();
         await this.terminalAutomationService.sendControlKey(
           sessionId,
           parsed.key,
@@ -775,9 +784,14 @@ export class DiscordBridgeService {
 
     await this.setInputLock(binding.sessionId, true);
     let skipUnlock = false;
+    const delayedInflightScreenshot = this.scheduleInflightScreenshot(context.message, binding.sessionId, request);
 
     try {
+      if (request.kind === 'text' || request.kind === 'control') {
+        await this.ensureMainWindowReadyForTerminalInput();
+      }
       const result = await this.executeRequest(binding.sessionId, request);
+      delayedInflightScreenshot?.cancel();
       const aborted = this.abortingChannels.has(channelId) || result.completionReason === 'aborted';
 
       if (aborted) {
@@ -807,6 +821,7 @@ export class DiscordBridgeService {
       });
       await this.finishSuccessfulRequest(channelId, binding.sessionId, request.requestId, { skipUnlock });
     } catch (error) {
+      delayedInflightScreenshot?.cancel();
       await this.finishFailedRequest(channelId, binding.sessionId, request, error, { skipUnlock });
     }
   }
@@ -896,6 +911,87 @@ export class DiscordBridgeService {
     await this.sendReplies(message, this.formatReplyText(AUTO_SCREENSHOT_ATTACHMENT_REPLY), [
       await this.createTerminalScreenshotAttachment(sessionId)
     ]);
+  }
+
+  private scheduleInflightScreenshot(
+    message: Message,
+    sessionId: string,
+    request: BridgeRequestRecord
+  ): DelayedInflightScreenshotHandle | undefined {
+    if (request.kind !== 'text' && request.kind !== 'control') {
+      return undefined;
+    }
+
+    const settings = this.preferencesStore.getBridgeSettings();
+    if (!settings.inflightScreenshotOnRunningRequest) {
+      return undefined;
+    }
+
+    const elapsedMs = Math.max(0, Date.now() - Date.parse(request.createdAt));
+    const delayMs = Math.max(0, settings.timing.inflightScreenshotDelayMs - elapsedMs);
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void this.sendInflightScreenshotIfStillRunning(message, sessionId, request.requestId, () => cancelled);
+    }, delayMs);
+
+    return {
+      cancel() {
+        cancelled = true;
+        clearTimeout(timer);
+      }
+    };
+  }
+
+  private async sendInflightScreenshotIfStillRunning(
+    message: Message,
+    sessionId: string,
+    requestId: string,
+    isCancelled: () => boolean
+  ): Promise<void> {
+    if (isCancelled()) {
+      return;
+    }
+
+    const context = this.requestContexts.get(requestId);
+    if (!context) {
+      return;
+    }
+
+    try {
+      await this.sendReplies(message, [], [await this.createTerminalScreenshotAttachment(sessionId)]);
+    } catch (error) {
+      console.warn(`Delayed inflight screenshot failed for request ${requestId}`, error);
+    }
+  }
+
+  private async ensureMainWindowReadyForTerminalInput(): Promise<void> {
+    const mainWindow = this.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    let attemptedActivation = false;
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+      attemptedActivation = true;
+    }
+
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+      attemptedActivation = true;
+    }
+
+    if (!mainWindow.isFocused()) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.moveTop();
+      attemptedActivation = true;
+    }
+
+    if (attemptedActivation) {
+      await wait(MAIN_WINDOW_ACTIVATION_SETTLE_MS);
+    }
   }
 
   private getTerminalScreenshotTiming() {
@@ -1317,31 +1413,38 @@ function parseNoEnterCommand(content: string): Extract<ParsedBridgeMessage, { ki
 }
 
 function parseRepeatedArrowCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'control' | 'error' }> | null {
-  if (content === '!up' || content === '[[terminal:up]]') {
-    return { kind: 'control', key: 'up', repeatCount: 1, expectOutput: false };
+  const singleArrowCommands: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+    '!up': 'up',
+    '[[terminal:up]]': 'up',
+    '!down': 'down',
+    '[[terminal:down]]': 'down',
+    '!left': 'left',
+    '[[terminal:left]]': 'left',
+    '!right': 'right',
+    '[[terminal:right]]': 'right'
+  };
+  const singleKey = singleArrowCommands[content];
+  if (singleKey) {
+    return { kind: 'control', key: singleKey, repeatCount: 1, expectOutput: false };
   }
 
-  if (content === '!down' || content === '[[terminal:down]]') {
-    return { kind: 'control', key: 'down', repeatCount: 1, expectOutput: false };
-  }
-
-  const bracketMatch = content.match(/^\[\[terminal:(up|down):(.+)\]\]$/);
+  const bracketMatch = content.match(/^\[\[terminal:(up|down|left|right):(.+)\]\]$/);
   if (bracketMatch) {
-    return parseArrowCountCommand(bracketMatch[1] as 'up' | 'down', bracketMatch[2]?.trim() ?? '');
+    return parseArrowCountCommand(bracketMatch[1] as 'up' | 'down' | 'left' | 'right', bracketMatch[2]?.trim() ?? '');
   }
 
-  const spacedMatch = content.match(/^!(up|down)\s+(.+)$/);
+  const spacedMatch = content.match(/^!(up|down|left|right)\s+(.+)$/);
   if (spacedMatch) {
-    return parseArrowCountCommand(spacedMatch[1] as 'up' | 'down', spacedMatch[2]?.trim() ?? '');
+    return parseArrowCountCommand(spacedMatch[1] as 'up' | 'down' | 'left' | 'right', spacedMatch[2]?.trim() ?? '');
   }
 
-  const compactMatch = content.match(/^!(up|down)(\d+)$/);
+  const compactMatch = content.match(/^!(up|down|left|right)(\d+)$/);
   if (compactMatch) {
-    return parseArrowCountCommand(compactMatch[1] as 'up' | 'down', compactMatch[2] ?? '');
+    return parseArrowCountCommand(compactMatch[1] as 'up' | 'down' | 'left' | 'right', compactMatch[2] ?? '');
   }
 
-  if (content.startsWith('!up ') || content.startsWith('!down ') || content.startsWith('[[terminal:up:') || content.startsWith('[[terminal:down:')) {
-    const key = content.includes('down') ? 'down' : 'up';
+  if (/^!(up|down|left|right)\s/.test(content) || /^\[\[terminal:(up|down|left|right):/.test(content)) {
+    const key = content.includes('down') ? 'down' : content.includes('left') ? 'left' : content.includes('right') ? 'right' : 'up';
     return buildArrowCountError(key, `[${key}: count must be an integer between ${REPEATED_ARROW_MIN_COUNT} and ${REPEATED_ARROW_MAX_COUNT}]`);
   }
 
@@ -1349,7 +1452,7 @@ function parseRepeatedArrowCommand(content: string): Extract<ParsedBridgeMessage
 }
 
 function parseArrowCountCommand(
-  key: 'up' | 'down',
+  key: 'up' | 'down' | 'left' | 'right',
   countText: string
 ): Extract<ParsedBridgeMessage, { kind: 'control' | 'error' }> {
   if (!/^\d+$/.test(countText)) {
@@ -1370,7 +1473,7 @@ function parseArrowCountCommand(
 }
 
 function buildArrowCountError(
-  _key: 'up' | 'down',
+  _key: 'up' | 'down' | 'left' | 'right',
   message: string
 ): Extract<ParsedBridgeMessage, { kind: 'error' }> {
   return {
@@ -1545,6 +1648,12 @@ function shouldActivateTerminalForMessage(parsed: ParsedBridgeMessage): boolean 
     default:
       return false;
   }
+}
+
+function wait(durationMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
 }
 
 function mapDiscordAttachment(attachment: Attachment): DiscordAttachmentInput {

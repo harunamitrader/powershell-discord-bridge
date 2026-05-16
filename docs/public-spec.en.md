@@ -40,7 +40,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 1. An approved user sends a message to a target channel in the allowed guild
 2. The bot receives the message
 3. The message is routed to the matching slot's PowerShell session
-4. The message content is sent into PowerShell
+4. For text or control input, the app window is best-effort restored and brought to the foreground if needed before the message content is sent into PowerShell
 5. Changes in the execution result are detected
 6. The result is sent back to Discord
 
@@ -62,10 +62,16 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - `!enter`
 - `!up`
 - `!down`
+- `!left`
+- `!right`
 - `!up N`
 - `!down N`
+- `!left N`
+- `!right N`
 - `!upN`
 - `!downN`
+- `!leftN`
+- `!rightN`
 - `!ctrlc`
 - `!esc`
 - `!stop`
@@ -93,14 +99,16 @@ This project is designed not as a **public remote-management bot**, but as a **b
 
 - Normal text messages can include Discord attachments. When attachments are received, the app prepends a comment block containing only the locally saved **absolute file paths** before passing the body to the terminal
 - Attachments are valid only on normal text messages. They are rejected on control commands such as `!help`
-- Repeated `!up` / `!down` inputs support `1-20` presses, with a default send interval of `100ms`
+- Repeated `!up` / `!down` / `!left` / `!right` inputs support `1-20` presses, with a default send interval of `100ms`
 - Files under `discord-publish` are automatically uploaded to the artifact channel on both create and update, and successful uploads send the file only
+- If a normal text or control request is still unfinished after the configured delay, the bridge sends one interim terminal screenshot as an additional progress reply
 
 ## 6. Safety-related behavior
 
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
 - `ALLOW_GUILD_ID` can optionally restrict operation to a single guild
+- Delayed inflight screenshots are enabled by default and can be changed through `preferences.json` with `bridgeSettings.inflightScreenshotOnRunningRequest` and `bridgeSettings.timing.inflightScreenshotDelayMs`
 - If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
 - Each slot stores its Discord channel ID and reconnects to the same channel after restart
 - If a slot has no channel ID, the app auto-creates a Discord channel at startup or when settings are saved
@@ -159,6 +167,7 @@ ALLOW_GUILD_ID=...
 - Logs opens from the top-right header in the same overlay style as Settings
 - The settings UI separates Global settings from Per terminal settings
 - The default Global settings are `auto screenshot ON`, `code block` replies, `soft timeout 300s`, `hard timeout unlimited`, `100x50` bridge size, plus the default wait values for bridge timing / completion / screenshot / download
+- The default delayed inflight screenshot setting is `ON`, with a `10000ms` delay
 - The default artifact publish settings are `discord-publish` under terminal 1's working directory and the shared channel `terminal-artifacts`
 - The default screen diff middle anchor length is `300`
 - Global bridge rows must be set to `15` or higher

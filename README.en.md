@@ -16,7 +16,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 
 ## PowerShell Discord Bridge in one page
 
-![PowerShell Discord Bridge one-page overview](docs/images/readme-overview-ja.png)
+![PowerShell Discord Bridge one-page overview](docs/images/readme-overview-en.png)
 
 ## Screenshots
 
@@ -183,6 +183,10 @@ The shortcut uses `assets\app-icon.ico` and starts the app through the hidden la
 10. Files saved in `discord-publish` are automatically uploaded to the artifact channel on both create and update
 11. You can open **Logs** at the top right to inspect startup logs, bridge logs, and terminal input logs inside the app overlay
 
+If a normal text or control request is **still running after 10 seconds**, the bridge sends **one interim terminal screenshot** so you can confirm that the input actually reached the terminal. If the request completes within 10 seconds, that interim screenshot is skipped and only the normal reply text plus the configured auto screenshot behavior are used. This feature is **enabled by default** and can be turned off or delayed from Settings and `preferences.json`.
+
+When Discord sends a normal **text or control** request, if the app window is **inactive or minimized**, the bridge makes a best-effort attempt to **restore and bring it to the foreground before** sending terminal input. This foreground activation is not applied to commands such as `!help`, screenshots, or settings changes.
+
 The number of slots is fixed.  
 If you rename a workspace, the linked Discord channel name follows that new name.  
 Each PowerShell slot can be restarted with **Restart**.
@@ -195,6 +199,8 @@ Each PowerShell slot can be restarted with **Restart**.
 - `!enter`: send Enter only
 - `!up` / `!up 3` / `!up3`: send the Up arrow key (1-20 times, default 1, default interval 100ms)
 - `!down` / `!down 3` / `!down3`: send the Down arrow key (1-20 times, default 1, default interval 100ms)
+- `!left` / `!left 3` / `!left3`: send the Left arrow key (1-20 times, default 1, default interval 100ms)
+- `!right` / `!right 3` / `!right3`: send the Right arrow key (1-20 times, default 1, default interval 100ms)
 - `!ctrlc`: send Ctrl+C
 - `!esc`: send Escape
 - `!stop`: send Ctrl+C and try to stop the current request; use Restart if it does not stop
@@ -207,6 +213,8 @@ Each PowerShell slot can be restarted with **Restart**.
 - `!autoscreenshoton`: turn automatic post-reply screenshots on
 - `!autoscreenshotoff`: turn automatic post-reply screenshots off
 - `!autoscreenshot`: show the current on/off state
+
+If a normal text or control request is **still in progress after the configured delay**, the bridge also sends **one interim terminal screenshot** so you can verify the input state. This is separate from the completion-time auto screenshot and is skipped when the request finishes within the delay. The default is **10 seconds / ON**.
 - `!cols`: show the current bridge cols
 - `!cols 100`: change the bridge cols
 - `!rows`: show the current bridge rows
@@ -238,6 +246,7 @@ Open Settings from the top right of the Electron app.
 Settings are split into **Global** and **Per terminal** sections.
 
 - **Global:** auto screenshot on/off, Discord reply format, soft timeout / hard timeout, fixed bridge cols / rows (minimum rows is `15`)
+- **Global:** Delayed inflight terminal screenshot (default `ON`) and inflight screenshot delay (default `10000ms`, saved as `bridgeSettings.inflightScreenshotOnRunningRequest` / `bridgeSettings.timing.inflightScreenshotDelayMs`)
 - **Global:** Artifact publish folder (default is `discord-publish` under terminal 1's cwd, destination channel is the auto-created `terminal-artifacts`)
 - **Global:** screen diff anchor chars (default `300`, saved as `bridgeSettings.diffAnchorChars` in `preferences.json`)
 - **Global:** bridge timing for redraw/input/Enter/repeat-key waits, plus completion detection, manual redraw, live view publish, screenshot capture, app restart, and attachment download waits/timeouts saved under `bridgeSettings.timing` in `%APPDATA%\PowerShell Discord Bridge\preferences.json`
@@ -246,10 +255,12 @@ Settings are split into **Global** and **Per terminal** sections.
 Default values are:
 
 - Auto screenshot after reply: `ON`
+- Delayed inflight terminal screenshot: `ON`
 - Discord reply format: `code block`
 - Soft timeout: `300s`
 - Hard timeout: `unlimited` (the input box shows `7200s`)
 - Bridge size: `100 cols x 50 rows`
+- Inflight screenshot delay: `10000ms`
 - Artifact publish folder: `terminal 1 cwd\discord-publish`
 - Screen diff anchor chars: `300`
 - Bridge timing: individually adjustable waits for text send, completion settle / no-output / poll, manual redraw, live view publish, screenshot capture, app restart, and attachment download timeout

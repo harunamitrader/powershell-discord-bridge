@@ -455,6 +455,10 @@ function toControlSequence(key: TerminalControlKey): string {
       return '\u001b[A';
     case 'down':
       return '\u001b[B';
+    case 'right':
+      return '\u001b[C';
+    case 'left':
+      return '\u001b[D';
   }
 }
 

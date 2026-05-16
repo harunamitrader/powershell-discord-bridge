@@ -11,6 +11,7 @@ interface StoredPreferences {
   terminalSlots?: StoredTerminalSlot[];
   bridgeSettings?: {
     autoScreenshotOnReply?: boolean;
+    inflightScreenshotOnRunningRequest?: boolean;
     replyFormat?: BridgeReplyFormat;
     softTimeoutMs?: number;
     hardTimeoutMs?: number | null;
@@ -24,6 +25,7 @@ interface StoredPreferences {
       channelId?: string;
     };
     timing?: {
+      inflightScreenshotDelayMs?: number;
       redrawWaitAfterShrinkMs?: number;
       beforeSendRedrawRestoreMs?: number;
       afterCompleteRedrawRestoreMs?: number;
@@ -58,6 +60,7 @@ interface StoredTerminalSlot {
 
 const DEFAULT_BRIDGE_SETTINGS = {
   autoScreenshotOnReply: true,
+  inflightScreenshotOnRunningRequest: true,
   replyFormat: 'command' as BridgeReplyFormat,
   softTimeoutMs: 300000,
   hardTimeoutMs: null,
@@ -71,6 +74,7 @@ const DEFAULT_BRIDGE_SETTINGS = {
     channelId: ''
   },
   timing: {
+    inflightScreenshotDelayMs: 10000,
     redrawWaitAfterShrinkMs: 500,
     beforeSendRedrawRestoreMs: 1500,
     afterCompleteRedrawRestoreMs: 1000,
@@ -190,6 +194,8 @@ export class PreferencesStore {
   getBridgeSettings(): BridgeSettings {
     return {
       autoScreenshotOnReply: this.state.bridgeSettings?.autoScreenshotOnReply ?? DEFAULT_BRIDGE_SETTINGS.autoScreenshotOnReply,
+      inflightScreenshotOnRunningRequest:
+        this.state.bridgeSettings?.inflightScreenshotOnRunningRequest ?? DEFAULT_BRIDGE_SETTINGS.inflightScreenshotOnRunningRequest,
       replyFormat: normalizeBridgeReplyFormat(this.state.bridgeSettings?.replyFormat),
       softTimeoutMs: clampInteger(
         this.state.bridgeSettings?.softTimeoutMs,
@@ -228,6 +234,12 @@ export class PreferencesStore {
         channelId: normalizeDiscordChannelId(this.state.bridgeSettings?.artifactPublish?.channelId)
       },
       timing: {
+        inflightScreenshotDelayMs: clampInteger(
+          this.state.bridgeSettings?.timing?.inflightScreenshotDelayMs,
+          MIN_TIMING_DELAY_MS,
+          MAX_TIMING_DELAY_MS,
+          DEFAULT_BRIDGE_SETTINGS.timing.inflightScreenshotDelayMs
+        ),
         redrawWaitAfterShrinkMs: clampInteger(
           this.state.bridgeSettings?.timing?.redrawWaitAfterShrinkMs,
           MIN_TIMING_DELAY_MS,
@@ -364,6 +376,9 @@ export class PreferencesStore {
       ...(update.autoScreenshotOnReply === undefined
         ? {}
         : { autoScreenshotOnReply: Boolean(update.autoScreenshotOnReply) }),
+      ...(update.inflightScreenshotOnRunningRequest === undefined
+        ? {}
+        : { inflightScreenshotOnRunningRequest: Boolean(update.inflightScreenshotOnRunningRequest) }),
       ...(update.replyFormat === undefined ? {} : { replyFormat: update.replyFormat }),
       ...(update.softTimeoutMs === undefined ? {} : { softTimeoutMs: update.softTimeoutMs }),
       ...(update.hardTimeoutMs === undefined ? {} : { hardTimeoutMs: update.hardTimeoutMs === null ? null : update.hardTimeoutMs }),

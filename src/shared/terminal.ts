@@ -2,7 +2,7 @@ export type SessionStatus = 'starting' | 'ready' | 'exited';
 export type TerminalSessionMode = 'desktop' | 'bridge';
 export type TerminalResizeMode = 'fit' | 'fixed';
 export type TerminalWriteSource = 'local' | 'bridge' | 'system';
-export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter' | 'up' | 'down';
+export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter' | 'up' | 'down' | 'left' | 'right';
 export type TerminalSnapshotReason = 'before-send' | 'after-complete' | 'manual';
 export type TerminalSlotId = 1 | 2 | 3 | 4;
 export type BridgeReplyFormat = 'command' | 'plain-text';
@@ -21,6 +21,7 @@ export interface TerminalDimensions {
 }
 
 export interface BridgeTimingSettings {
+  inflightScreenshotDelayMs: number;
   redrawWaitAfterShrinkMs: number;
   beforeSendRedrawRestoreMs: number;
   afterCompleteRedrawRestoreMs: number;
@@ -51,6 +52,7 @@ export interface BridgeArtifactPublishSettings {
 
 export interface BridgeSettings {
   autoScreenshotOnReply: boolean;
+  inflightScreenshotOnRunningRequest: boolean;
   replyFormat: BridgeReplyFormat;
   softTimeoutMs: number;
   hardTimeoutMs: number | null;
@@ -62,6 +64,7 @@ export interface BridgeSettings {
 
 export interface BridgeSettingsUpdate {
   autoScreenshotOnReply?: boolean;
+  inflightScreenshotOnRunningRequest?: boolean;
   replyFormat?: BridgeReplyFormat;
   softTimeoutMs?: number;
   hardTimeoutMs?: number | null;
