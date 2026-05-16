@@ -197,6 +197,7 @@ Each PowerShell slot can be restarted with **Restart**.
 - `!stop`: send Ctrl+C and try to stop the current request; use Restart if it does not stop
 - `!forcestop`: forcibly stop the current terminal and restart it automatically
 - `!restartterminal` / `!rst`: restart the matching terminal slot
+- `!redraw`: trigger the manual redraw jiggle on the matching terminal slot
 - `!restartapp` / `!rsa`: restart the app itself
 - `!screenshot` / `!ss`: return a screenshot of the target terminal immediately, even while busy
 - `!windowscreenshot` / `!wss`: return a screenshot of the whole app window immediately, even while busy

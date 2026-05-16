@@ -46,6 +46,7 @@ const STOPPED_REPLY = '[stopped]';
 const STOP_REQUESTED_REPLY = '[stop requested]';
 const FORCE_STOPPED_REPLY = '[terminal force-stopped and restarted]';
 const TERMINAL_RESTARTED_REPLY = '[terminal restarted]';
+const TERMINAL_REDRAWN_REPLY = '[terminal redrawn]';
 const APP_RESTARTING_REPLY = '[app restarting]';
 const NO_ACTIVE_REQUEST_REPLY = '[no active request]';
 const QUEUE_FULL_REPLY = 'Bridge busy: one request is already running and one is already queued.';
@@ -64,6 +65,7 @@ const HELP_REPLY = [
   'Bridge commands:',
   '!help',
   '!restartterminal / !rst',
+  '!redraw',
   '!restartapp / !rsa',
   '!stop -> send Ctrl+C and request stop',
   '!forcestop -> kill terminal and auto restart',
@@ -116,6 +118,7 @@ type ParsedBridgeMessage =
   | { kind: 'error'; message: string }
   | { kind: 'help' }
   | { kind: 'restart-terminal' }
+  | { kind: 'redraw' }
   | { kind: 'restart-app' }
   | { kind: 'stop' }
   | { kind: 'force-stop' }
@@ -417,6 +420,11 @@ export class DiscordBridgeService {
       return;
     }
 
+    if (parsed.kind === 'redraw') {
+      await this.handleRedrawCommand(message, slot.slotId);
+      return;
+    }
+
     if (parsed.kind === 'restart-app') {
       await this.handleRestartAppCommand(message);
       return;
@@ -615,6 +623,24 @@ export class DiscordBridgeService {
 
     await this.tryAddReaction(message, REACTION_SUCCESS);
     await this.sendReplies(message, this.formatReplyText(TERMINAL_RESTARTED_REPLY));
+  }
+
+  private async handleRedrawCommand(message: Message, slotId: TerminalSlotId): Promise<void> {
+    await this.tryAddReaction(message, REACTION_PROCESSING);
+
+    const session = this.getLiveSessionForSlot(slotId);
+    if (!session) {
+      await this.tryAddReaction(message, REACTION_REJECTED);
+      await this.sendReplies(message, this.formatReplyText('[terminal redraw failed: no active session]'));
+      return;
+    }
+
+    await this.terminalSessionManager.redrawJiggle({
+      sessionId: session.id
+    });
+
+    await this.tryAddReaction(message, REACTION_SUCCESS);
+    await this.sendReplies(message, this.formatReplyText(TERMINAL_REDRAWN_REPLY));
   }
 
   private async handleRestartAppCommand(message: Message): Promise<void> {
@@ -1238,6 +1264,9 @@ export function parseBridgeMessage(content: string, botUserId?: string): ParsedB
     case '!rst':
     case '[[terminal:restart-terminal]]':
       return { kind: 'restart-terminal' };
+    case '!redraw':
+    case '[[terminal:redraw]]':
+      return { kind: 'redraw' };
     case '!restartapp':
     case '!rsa':
     case '[[terminal:restart-app]]':
@@ -1511,6 +1540,7 @@ function shouldActivateTerminalForMessage(parsed: ParsedBridgeMessage): boolean 
     case 'stop':
     case 'force-stop':
     case 'restart-terminal':
+    case 'redraw':
       return true;
     default:
       return false;

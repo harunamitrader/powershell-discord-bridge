@@ -13,6 +13,7 @@
 - `!up`, `!down` で矢印キーを送るコマンド
 - `!up N`, `!down N` と `!upN`, `!downN` の連続矢印キーコマンド
 - `!replyformat`, `!replyformatcommand`, `!replyformattext` コマンド
+- `!redraw` で Discord から terminal の手動再描画 jiggle を実行するコマンド
 - `!/command` と `!noenterTEXT` の入力モード切り替え
 - Discord 返信形式の `code block` / `plain text` 切り替え
 - hard timeout の unlimited 設定

@@ -7,3 +7,4 @@ coverage/
 *.log
 *.tmp
 docs/internal/
+docs/repository-review-*.md

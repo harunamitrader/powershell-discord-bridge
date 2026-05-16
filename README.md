@@ -197,6 +197,7 @@ npm run setup:shortcuts
 - `!stop`: Ctrl+C を送って進行中のリクエスト停止を試みる（止まらない場合は Restart を使う）
 - `!forcestop`: 現在の terminal を強制停止して自動で再起動する
 - `!restartterminal` / `!rst`: 対応する terminal slot を再起動
+- `!redraw`: 対応する terminal slot に再描画 jiggle をかける
 - `!restartapp` / `!rsa`: アプリ自体を再起動
 - `!screenshot` / `!ss`: 対象 terminal のスクリーンショットを返す（busy 中もキューせず即時）
 - `!windowscreenshot` / `!wss`: アプリ画面全体のスクリーンショットを返す（busy 中もキューせず即時）

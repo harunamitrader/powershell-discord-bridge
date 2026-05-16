@@ -76,6 +76,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - `!wss`
 - `!restartterminal`
 - `!rst`
+- `!redraw`
 - `!restartapp`
 - `!rsa`
 - `!autoscreenshoton`
