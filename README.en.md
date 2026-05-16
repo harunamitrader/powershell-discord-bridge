@@ -38,6 +38,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 - Return an **app window screenshot** with `!windowscreenshot` / `!wss` even while busy
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
+- In the app terminal, use `Ctrl+C` to copy the current selection and `Ctrl+V` to paste clipboard text into the session
 - Let you watch the same live session from the app UI
 
 ## Current limitations

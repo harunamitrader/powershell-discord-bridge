@@ -16,6 +16,7 @@
 - `!replyformat`, `!replyformatcommand`, `!replyformattext` コマンド
 - `!redraw` で Discord から terminal の手動再描画 jiggle を実行するコマンド
 - `!/command` と `!noenterTEXT` の入力モード切り替え
+- アプリ内 terminal で `Ctrl+V` によるクリップボードテキスト貼り付け
 - 通常の text / control リクエストが delay 以上完了しないときに、途中確認用の terminal スクリーンショットを 1 回返す動作（既定 ON / delay 設定可）
 - Discord 返信形式の `code block` / `plain text` 切り替え
 - hard timeout の unlimited 設定

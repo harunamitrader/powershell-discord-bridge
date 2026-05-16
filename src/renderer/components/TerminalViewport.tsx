@@ -46,6 +46,12 @@ export function TerminalViewport({ session, focused, onActivate }: TerminalViewp
         return false;
       }
 
+      if (event.type === 'keydown' && isPasteShortcut(event)) {
+        event.preventDefault();
+        void pasteClipboardIntoTerminal(session.id);
+        return false;
+      }
+
       return true;
     });
     terminalRef.current = terminal;
@@ -160,4 +166,25 @@ function isCopyShortcut(event: KeyboardEvent): boolean {
   }
 
   return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
+}
+
+function isPasteShortcut(event: KeyboardEvent): boolean {
+  if (event.altKey) {
+    return false;
+  }
+
+  return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v';
+}
+
+async function pasteClipboardIntoTerminal(sessionId: string): Promise<void> {
+  try {
+    const text = await window.terminalApp.readClipboard();
+    if (!text) {
+      return;
+    }
+
+    await window.terminalApp.write(sessionId, text);
+  } catch (error: unknown) {
+    console.error('Clipboard paste failed', error);
+  }
 }

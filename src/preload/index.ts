@@ -50,6 +50,9 @@ const api: TerminalApi = {
   async updateTerminalSlot(update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult> {
     return ipcRenderer.invoke('terminal:update-slot', update);
   },
+  async readClipboard(): Promise<string> {
+    return clipboard.readText();
+  },
   async writeClipboard(text: string): Promise<void> {
     clipboard.writeText(text);
   },

@@ -38,6 +38,7 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す（busy 中も即時取得）
 - terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
+- アプリ側の terminal では `Ctrl+C` で選択テキストをコピーし、`Ctrl+V` でクリップボードのテキストを貼り付けられる
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
 ## 現在の制限

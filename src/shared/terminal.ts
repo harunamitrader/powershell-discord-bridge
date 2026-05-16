@@ -337,6 +337,7 @@ export interface TerminalApi {
   bootstrap(): Promise<BootstrapState>;
   restartTerminalSlot(slotId: TerminalSlotId): Promise<TerminalSessionSummary>;
   updateTerminalSlot(update: TerminalSlotSettingsUpdate): Promise<TerminalSlotSettingsUpdateResult>;
+  readClipboard(): Promise<string>;
   writeClipboard(text: string): Promise<void>;
   write(sessionId: string, data: string): Promise<void>;
   resize(sessionId: string, cols: number, rows: number): Promise<void>;
