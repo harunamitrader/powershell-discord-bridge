@@ -29,6 +29,9 @@ If the app is not running, the CLI fails clearly.
 npm run slot:send -- --slot slot3 --text "Review this diff"
 ```
 
+By default, this command also performs a lightweight **delivery likelihood check** a few seconds later.
+It returns one of `likely_delivered`, `uncertain`, or `likely_not_delivered`, which only estimates whether the input probably reached the target. It does not track the final outcome.
+
 ### 2. Send without Enter
 
 ```powershell
@@ -52,9 +55,37 @@ line 2
 - `--json`: optional. Prints the accepted response as JSON
 - `--client`: optional. Adds a client label for logs
 
+## Additional observe commands
+
+Only when the user asks for confirmation, the AI can call these on-demand observe actions.
+
+### Check visible slot text
+
+```powershell
+npm run slot:observe -- --slot slot3 --text
+```
+
+This visible text keeps **visual wrap boundaries as line breaks**, which makes it a better first choice than screenshots when you want to inspect table-like or list-like terminal output.
+
+### Check a slot screenshot (`!ss` equivalent)
+
+```powershell
+npm run slot:observe -- --slot slot3 --screenshot
+```
+
+PNG files are saved under `%APPDATA%\PowerShell Discord Bridge\automation-captures\...`, and the CLI returns the saved path as JSON.
+
+### Check the whole app window screenshot (`!wss` equivalent)
+
+```powershell
+npm run slot:observe -- --window-screenshot
+```
+
+If the AI needs to understand other slots, it can simply fetch each slot's visible text one slot at a time. A dedicated summary feature is not required.
+
 ## Using it through a skill
 
-This repo is designed so a skill can simply call the `slot:send` CLI.  
+This repo is designed so a skill can simply call the `slot:send` and `slot:observe` CLIs.
 That keeps `AGENTS.md` clean while still letting an AI follow requests such as “send this text to slot3”.
 
 ### Example: Copilot skill setup
@@ -80,6 +111,14 @@ Internally, the skill calls:
 
 ```powershell
 npm run slot:send -- --slot slot3 --text "Review this diff"
+```
+
+Only when needed, it can also call:
+
+```powershell
+npm run slot:observe -- --slot slot3 --text
+npm run slot:observe -- --slot slot3 --screenshot
+npm run slot:observe -- --window-screenshot
 ```
 
 ### If another AI CLI supports skills

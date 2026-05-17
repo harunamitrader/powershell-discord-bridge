@@ -50,6 +50,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - You can verify from the app whether a Discord message was actually injected
 - `!screenshot` / `!ss` returns a **screenshot of the target terminal** to Discord, even while busy, without queueing
 - `!windowscreenshot` / `!wss` returns a **screenshot of the whole app window** to Discord, even while busy, without queueing
+- `!text N` / `!textN` returns up to the last N characters from the **currently visible terminal text**
 - On the first launch, the app automatically creates a `discord-publish` folder under terminal 1's working directory so saved files can be sent to the shared artifact channel
 - **Logs** in the top-right header opens an in-app overlay for bridge startup logs, stderr, and terminal input logs
 - When started from the desktop shortcut, a temporary startup message window is shown until the Electron window appears
@@ -80,6 +81,8 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - `!ss`
 - `!windowscreenshot`
 - `!wss`
+- `!text N`
+- `!textN`
 - `!restartterminal`
 - `!rst`
 - `!redraw`
@@ -102,7 +105,11 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - Repeated `!up` / `!down` / `!left` / `!right` inputs support `1-20` presses, with a default send interval of `100ms`
 - Files under `discord-publish` are automatically uploaded to the artifact channel on both create and update, and successful uploads send the file only
 - If a normal text or control request is still unfinished after the configured delay, the bridge sends one interim terminal screenshot as an additional progress reply
+- In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters plus repeated horizontal whitespace runs longer than 5 characters are compressed down to 5
+- `!text` only accepts integers from `1-9500`, and uses that **post-compression reply length** before normal reply chunking is applied
 - Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + text + optional Enter` request shape through a local-only automation endpoint
+- Those sends now return a lightweight **delivery likelihood check** with `likely_delivered`, `uncertain`, or `likely_not_delivered`
+- Only when requested by the user, local automation can also fetch visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
 
 ## 6. Safety-related behavior
 

@@ -29,6 +29,9 @@
 npm run slot:send -- --slot slot3 --text "この差分を見て"
 ```
 
+このコマンドは通常、送信後に少し待って **delivery likelihood check** を行います。
+返り値は `likely_delivered` / `uncertain` / `likely_not_delivered` の 3 値で、**入力が届いた可能性の高さ**だけを軽く判定します。最終結果の追跡はしません。
+
 ### 2. Enter なしで送る
 
 ```powershell
@@ -52,9 +55,37 @@ line 2
 - `--json`: 任意。受理結果を JSON で出す
 - `--client`: 任意。ログ用ラベル
 
+## 追加の観測コマンド
+
+ユーザーが求めたときだけ、AI は次の on-demand 観測を使えます。
+
+### 各 slot の visible text を確認
+
+```powershell
+npm run slot:observe -- --slot slot3 --text
+```
+
+この visible text は、**terminal 上の visual wrap 改行位置を維持したまま**返ります。表や一覧のような表示を読みたいときは、screenshot より先にこれを使うのがおすすめです。
+
+### 各 slot の screenshot を確認 (`!ss` 相当)
+
+```powershell
+npm run slot:observe -- --slot slot3 --screenshot
+```
+
+PNG は `%APPDATA%\PowerShell Discord Bridge\automation-captures\...` に保存され、CLI は保存先 path を JSON で返します。
+
+### アプリ全体の screenshot を確認 (`!wss` 相当)
+
+```powershell
+npm run slot:observe -- --window-screenshot
+```
+
+AI がほかの slot の状況を知りたい場合も、まずは **各 slot の visible text を個別に取って読む**だけで十分です。専用 summary 機能は前提にしません。
+
 ## skill で使う
 
-この repo は **skill から `slot:send` CLI を呼ぶ**前提で使えます。  
+この repo は **skill から `slot:send` / `slot:observe` CLI を呼ぶ**前提で使えます。
 この方法なら `AGENTS.md` を編集せずに、「slot3 にこの文を入力して」のような依頼を AI に処理させやすくなります。
 
 ### Copilot skill の設定例
@@ -80,6 +111,14 @@ skill 側では内部的に次の CLI を使います。
 
 ```powershell
 npm run slot:send -- --slot slot3 --text "この差分を見て"
+```
+
+必要なときだけ、次の観測系も使います。
+
+```powershell
+npm run slot:observe -- --slot slot3 --text
+npm run slot:observe -- --slot slot3 --screenshot
+npm run slot:observe -- --window-screenshot
 ```
 
 ### 他の AI CLI で skill を作る場合

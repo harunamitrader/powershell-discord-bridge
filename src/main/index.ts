@@ -50,7 +50,14 @@ async function bootstrap(): Promise<void> {
     preferencesStore
   );
   artifactPublishService = new ArtifactPublishService(preferencesStore, terminalSlotService, discordBridgeService);
-  localAutomationServer = new LocalAutomationServer(terminalSlotService, terminalAutomationService, appLogStore);
+  localAutomationServer = new LocalAutomationServer(
+    terminalSlotService,
+    terminalAutomationService,
+    terminalSessionManager,
+    preferencesStore,
+    () => mainWindow,
+    appLogStore
+  );
   artifactPublishService.initializeDefaults();
 
   terminalSessionManager.on('session-exit', ({ sessionId }) => {

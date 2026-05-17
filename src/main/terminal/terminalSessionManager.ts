@@ -294,6 +294,15 @@ export class TerminalSessionManager extends EventEmitter {
     return session.mirror.capture(reason);
   }
 
+  async getVisibleScreenText(sessionId: string, options?: { preserveWrapBoundaries?: boolean }): Promise<string> {
+    const session = this.getSessionRecord(sessionId);
+    if (!session) {
+      throw new Error(`Unknown terminal session: ${sessionId}`);
+    }
+
+    return session.mirror.getVisibleScreenText(options);
+  }
+
   async redrawJiggle(request: TerminalRedrawJiggleRequest): Promise<void> {
     const session = this.getSessionRecord(request.sessionId);
     if (!session) {

@@ -61,6 +61,8 @@ const ARTIFACT_CHANNEL_NAME = 'terminal-artifacts';
 const ARTIFACT_CHANNEL_TOPIC = 'PowerShell Discord Bridge watched file uploads.';
 const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
+const TEXT_COMMAND_MIN_CHARS = 1;
+const TEXT_COMMAND_MAX_CHARS = 9500;
 const MAIN_WINDOW_ACTIVATION_SETTLE_MS = 200;
 const HELP_REPLY = [
   'Bridge commands:',
@@ -79,6 +81,7 @@ const HELP_REPLY = [
   '!ctrlc / !ctrl-c',
   '!screenshot / !ss',
   '!windowscreenshot / !wss',
+  `!text N / !textN (${TEXT_COMMAND_MIN_CHARS}-${TEXT_COMMAND_MAX_CHARS})`,
   '!autoscreenshot',
   '!autoscreenshoton',
   '!autoscreenshotoff',
@@ -136,6 +139,7 @@ type ParsedBridgeMessage =
   | { kind: 'settings'; setting: 'reply-format'; value?: 'command' | 'plain-text' }
   | { kind: 'screenshot'; expectOutput: false }
   | { kind: 'window-screenshot'; expectOutput: false }
+  | { kind: 'visible-text'; maxChars: number }
   | { kind: 'control'; key: TerminalControlKey; repeatCount?: number; expectOutput: boolean }
   | { kind: 'text'; content: string; expectOutput: boolean; appendEnter?: boolean };
 
@@ -442,6 +446,11 @@ export class DiscordBridgeService {
       return;
     }
 
+    if (parsed.kind === 'visible-text') {
+      await this.handleVisibleTextCommand(message, slot.slotId, parsed.maxChars);
+      return;
+    }
+
     if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed) && !attachmentBatch) {
       await this.handleBusyPassthroughMessage(message, binding.sessionId, parsed);
       return;
@@ -650,6 +659,28 @@ export class DiscordBridgeService {
 
     await this.tryAddReaction(message, REACTION_SUCCESS);
     await this.sendReplies(message, this.formatReplyText(TERMINAL_REDRAWN_REPLY));
+  }
+
+  private async handleVisibleTextCommand(message: Message, slotId: TerminalSlotId, maxChars: number): Promise<void> {
+    await this.tryAddReaction(message, REACTION_PROCESSING);
+
+    const session = this.getLiveSessionForSlot(slotId);
+    if (!session) {
+      await this.tryAddReaction(message, REACTION_REJECTED);
+      await this.sendReplies(message, this.formatReplyText('[visible text failed: no active session]'));
+      return;
+    }
+
+    try {
+      const visibleScreenText = await this.terminalSessionManager.getVisibleScreenText(session.id, {
+        preserveWrapBoundaries: true
+      });
+      await this.tryAddReaction(message, REACTION_SUCCESS);
+      await this.sendReplies(message, this.formatVisibleTextReply(visibleScreenText, maxChars));
+    } catch (error) {
+      await this.tryAddReaction(message, REACTION_FAILURE);
+      await this.sendReplies(message, this.formatReplyText(`Bridge request failed: ${toErrorMessage(error)}`));
+    }
   }
 
   private async handleRestartAppCommand(message: Message): Promise<void> {
@@ -1156,6 +1187,10 @@ export class DiscordBridgeService {
     return this.replyFormatter.format(text, this.preferencesStore.getBridgeSettings().replyFormat);
   }
 
+  private formatVisibleTextReply(text: string, maxChars: number): string[] {
+    return this.replyFormatter.formatVisibleText(text, maxChars, this.preferencesStore.getBridgeSettings().replyFormat);
+  }
+
   private async setInputLock(sessionId: string, locked: boolean): Promise<void> {
     try {
       await Promise.resolve(this.terminalAutomationService.setInputLock(sessionId, locked));
@@ -1333,6 +1368,10 @@ export function parseBridgeMessage(content: string, botUserId?: string): ParsedB
   if (autoScreenshotCommand) {
     return autoScreenshotCommand;
   }
+  const visibleTextCommand = parseVisibleTextCommand(trimmedForCommand);
+  if (visibleTextCommand) {
+    return visibleTextCommand;
+  }
 
   switch (normalizedLower) {
     case '!ctrlc':
@@ -1409,6 +1448,60 @@ function parseNoEnterCommand(content: string): Extract<ParsedBridgeMessage, { ki
     content: leftTrimmed.slice(prefix.length),
     appendEnter: false,
     expectOutput: false
+  };
+}
+
+function parseVisibleTextCommand(content: string): Extract<ParsedBridgeMessage, { kind: 'visible-text' | 'error' }> | null {
+  if (content.length === 0) {
+    return null;
+  }
+
+  const bracketMatch = content.match(/^\[\[terminal:text:(.+)\]\]$/i);
+  if (bracketMatch) {
+    return parseVisibleTextCount(bracketMatch[1]?.trim() ?? '');
+  }
+
+  const spacedMatch = content.match(/^!text\s+(.+)$/i);
+  if (spacedMatch) {
+    return parseVisibleTextCount(spacedMatch[1]?.trim() ?? '');
+  }
+
+  const compactMatch = content.match(/^!text(\d+)$/i);
+  if (compactMatch) {
+    return parseVisibleTextCount(compactMatch[1] ?? '');
+  }
+
+  if (/^!text$/i.test(content) || /^\[\[terminal:text\]\]$/i.test(content)) {
+    return buildVisibleTextError(`[text: count must be an integer between ${TEXT_COMMAND_MIN_CHARS} and ${TEXT_COMMAND_MAX_CHARS}]`);
+  }
+
+  if (/^!text/i.test(content) || /^\[\[terminal:text:/i.test(content)) {
+    return buildVisibleTextError(`[text: count must be an integer between ${TEXT_COMMAND_MIN_CHARS} and ${TEXT_COMMAND_MAX_CHARS}]`);
+  }
+
+  return null;
+}
+
+function parseVisibleTextCount(valueText: string): Extract<ParsedBridgeMessage, { kind: 'visible-text' | 'error' }> {
+  if (!/^\d+$/.test(valueText)) {
+    return buildVisibleTextError(`[text: count must be an integer between ${TEXT_COMMAND_MIN_CHARS} and ${TEXT_COMMAND_MAX_CHARS}]`);
+  }
+
+  const value = Number(valueText);
+  if (value < TEXT_COMMAND_MIN_CHARS || value > TEXT_COMMAND_MAX_CHARS) {
+    return buildVisibleTextError(`[text: count must be between ${TEXT_COMMAND_MIN_CHARS} and ${TEXT_COMMAND_MAX_CHARS}]`);
+  }
+
+  return {
+    kind: 'visible-text',
+    maxChars: value
+  };
+}
+
+function buildVisibleTextError(message: string): Extract<ParsedBridgeMessage, { kind: 'error' }> {
+  return {
+    kind: 'error',
+    message
   };
 }
 

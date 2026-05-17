@@ -12,39 +12,23 @@ async function main() {
     return;
   }
 
-  const text = await resolveText(options);
-  const slot = normalizeSlot(options.slot);
-  const request = {
-    kind: 'send-text',
-    slot,
-    text,
-    pressEnter: !options.noEnter,
-    client: options.client || 'bridge-send-slot'
-  };
-
+  const request = buildRequest(options);
   const response = await sendRequest(request);
   if (!response || response.ok !== true) {
     const message = response && typeof response.error === 'string' ? response.error : 'Unknown automation error.';
     throw new Error(message);
   }
 
-  if (options.json) {
-    process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
-    return;
-  }
-
-  process.stdout.write(
-    `Sent ${response.textLength} chars to slot${response.slot} (${response.sessionId})${response.pressEnter ? ' with Enter' : ' without Enter'}${response.deliveryCheck ? ` [delivery: ${response.deliveryCheck.verdict}]` : ''}.\n`
-  );
+  process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
 }
 
 function parseArgs(argv) {
   const options = {
     slot: undefined,
-    text: undefined,
-    noEnter: false,
-    json: false,
-    client: undefined,
+    text: false,
+    screenshot: false,
+    windowScreenshot: false,
+    maxChars: undefined,
     help: false
   };
 
@@ -56,18 +40,17 @@ function parseArgs(argv) {
         index += 1;
         break;
       case '--text':
-        options.text = argv[index + 1];
+        options.text = true;
+        break;
+      case '--screenshot':
+        options.screenshot = true;
+        break;
+      case '--window-screenshot':
+        options.windowScreenshot = true;
+        break;
+      case '--max-chars':
+        options.maxChars = argv[index + 1];
         index += 1;
-        break;
-      case '--client':
-        options.client = argv[index + 1];
-        index += 1;
-        break;
-      case '--no-enter':
-        options.noEnter = true;
-        break;
-      case '--json':
-        options.json = true;
         break;
       case '--help':
       case '-h':
@@ -81,25 +64,41 @@ function parseArgs(argv) {
   return options;
 }
 
-async function resolveText(options) {
-  if (typeof options.text === 'string') {
-    if (options.text.length === 0) {
-      throw new Error('Text cannot be empty.');
-    }
-
-    return options.text;
+function buildRequest(options) {
+  if (options.windowScreenshot) {
+    ensureExclusive(options, 'window-screenshot');
+    return { kind: 'observe-window-screenshot' };
   }
 
-  if (process.stdin.isTTY) {
-    throw new Error('Text is required. Pass --text or pipe text to stdin.');
+  const slot = normalizeSlot(options.slot);
+
+  if (options.text === options.screenshot) {
+    throw new Error('Choose exactly one of --text or --screenshot for slot observation.');
   }
 
-  const stdinText = await readStdin();
-  if (stdinText.length === 0) {
-    throw new Error('Stdin text is empty.');
+  if (options.text) {
+    return {
+      kind: 'observe-slot-text',
+      slot,
+      maxChars: normalizeOptionalPositiveInteger(options.maxChars, '--max-chars')
+    };
   }
 
-  return stdinText;
+  return {
+    kind: 'observe-slot-screenshot',
+    slot
+  };
+}
+
+function ensureExclusive(options, selectedMode) {
+  const flags = [options.text, options.screenshot, options.windowScreenshot].filter(Boolean).length;
+  if (flags !== 1) {
+    throw new Error(`Use ${selectedMode} by itself.`);
+  }
+
+  if (selectedMode !== 'window-screenshot' && typeof options.slot === 'string') {
+    throw new Error('--slot cannot be combined with this mode.');
+  }
 }
 
 function normalizeSlot(value) {
@@ -115,20 +114,17 @@ function normalizeSlot(value) {
   return Number(normalized);
 }
 
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let buffer = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      buffer += chunk;
-    });
-    process.stdin.on('end', () => {
-      resolve(buffer);
-    });
-    process.stdin.on('error', (error) => {
-      reject(error);
-    });
-  });
+function normalizeOptionalPositiveInteger(value, flagName) {
+  if (typeof value === 'undefined') {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${flagName} must be a positive integer.`);
+  }
+
+  return parsed;
 }
 
 function sendRequest(request) {
@@ -219,15 +215,16 @@ function printHelp() {
   process.stdout.write(
     [
       'Usage:',
-      '  node scripts\\bridge-send-slot.cjs --slot slot3 --text "Hello"',
-      '  Get-Content .\\prompt.txt | node scripts\\bridge-send-slot.cjs --slot slot3',
+      '  node scripts\\bridge-observe.cjs --slot slot3 --text',
+      '  node scripts\\bridge-observe.cjs --slot slot3 --screenshot',
+      '  node scripts\\bridge-observe.cjs --window-screenshot',
       '',
       'Options:',
-      '  --slot <slot>    Required. 1-4, slot1-slot4, or slot-1-slot-4',
-      '  --text <text>    Optional when text is piped through stdin',
-      '  --no-enter       Send text without the trailing Enter',
-      '  --json           Print the response as JSON',
-      '  --client <name>  Optional client label for logs'
+      '  --slot <slot>          Required for --text and --screenshot',
+      '  --text                 Return visible slot text as JSON',
+      '  --screenshot           Capture a slot screenshot and return the saved file path as JSON',
+      '  --window-screenshot    Capture the whole app window and return the saved file path as JSON',
+      '  --max-chars <count>    Optional text limit for --text'
     ].join('\n') + '\n'
   );
 }

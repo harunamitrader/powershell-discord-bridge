@@ -36,6 +36,7 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - 実行結果の差分を Discord に返信する
 - `!screenshot` / `!ss` で **対象 terminal のスクリーンショット**を Discord に返す（busy 中も即時取得、再描画誘発なし）
 - `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す（busy 中も即時取得）
+- `!text N` / `!textN` で **現在表示中の terminal テキスト末尾**を最大 N 文字まで Discord に返す
 - terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
 - ローカルの AI CLI / shell からも、slot 指定でプレーンテキストを直接送れる
@@ -206,6 +207,7 @@ npm run slot:send -- --slot slot3 --text "この差分を見て"
 - `--slot` は `1-4` / `slot1-slot4`
 - `--text` を省略した場合は **stdin** から読みます
 - `--no-enter` を付けると Enter なしで入力します
+- 通常は送信後に **数秒待って delivery check** を行い、`likely_delivered / uncertain / likely_not_delivered` のどれかを返します
 - Electron アプリが起動していない場合は失敗します
 
 詳しい使い方と skill 設定方法は `docs\advanced-local-ai-slot-send.md` を見てください。Copilot 用の skill テンプレートは `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md` に置いてあります。
@@ -236,6 +238,7 @@ line 2
 - `!restartapp` / `!rsa`: アプリ自体を再起動
 - `!screenshot` / `!ss`: 対象 terminal のスクリーンショットを返す（busy 中もキューせず即時）
 - `!windowscreenshot` / `!wss`: アプリ画面全体のスクリーンショットを返す（busy 中もキューせず即時）
+- `!text 1000` / `!text1000`: 現在表示中の terminal テキスト末尾を最大 1000 文字まで返す
 - `!autoscreenshoton`: 各返信完了後の自動スクリーンショット送信を ON
 - `!autoscreenshotoff`: 各返信完了後の自動スクリーンショット送信を OFF
 - `!autoscreenshot`: 現在の ON/OFF 状態を確認
@@ -251,7 +254,7 @@ line 2
 - `!replyformatcommand`: Discord 返信形式を code block に変更
 - `!replyformattext`: Discord 返信形式を plain text に変更
 
-`!cols` は `40-400`、`!rows` は `15-120` の範囲だけ受け付けます。範囲外や整数でない値を送った場合は、設定を変えずにエラーメッセージを返します。
+`!text` は `1-9500`、`!cols` は `40-400`、`!rows` は `15-120` の範囲だけ受け付けます。範囲外や整数でない値を送った場合は、設定を変えずにエラーメッセージを返します。**通常返信と `!text` 返信の両方**で、visible text の **visual wrap 改行位置を維持**し、同じ記号の 5 文字超連続と横方向空白の 5 文字超連続は 5 文字までに圧縮されます。`!text` の指定文字数は**この圧縮後の返信テキスト長ベース**で扱います。長い場合は通常の Discord 返信分割ルールで複数メッセージに分けます。
 
 通常メッセージに **Discord 添付ファイル** を付けた場合は、添付を `AppData\Roaming\...\discord-bridge\incoming-files\...` に保存したうえで、次のようなコメントブロックを本文先頭に付けて terminal へ送ります。
 

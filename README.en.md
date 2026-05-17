@@ -36,6 +36,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 - Reply to Discord with the detected output diff
 - Return a **terminal screenshot** with `!screenshot` / `!ss` even while busy, without forcing a redraw
 - Return an **app window screenshot** with `!windowscreenshot` / `!wss` even while busy
+- Return the tail of the **currently visible terminal text** with `!text N` / `!textN`
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
 - Also send plain text directly to slot1-slot4 from a local AI CLI or shell
@@ -206,6 +207,7 @@ npm run slot:send -- --slot slot3 --text "Review this diff"
 - `--slot` accepts `1-4` or `slot1-slot4`
 - If `--text` is omitted, the CLI reads from **stdin**
 - Add `--no-enter` to send the text without Enter
+- By default, the CLI waits a few seconds and returns a lightweight delivery verdict: `likely_delivered`, `uncertain`, or `likely_not_delivered`
 - The command fails clearly when the Electron app is not running
 
 For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`.
@@ -236,6 +238,7 @@ line 2
 - `!restartapp` / `!rsa`: restart the app itself
 - `!screenshot` / `!ss`: return a screenshot of the target terminal immediately, even while busy
 - `!windowscreenshot` / `!wss`: return a screenshot of the whole app window immediately, even while busy
+- `!text 1000` / `!text1000`: return up to the last 1000 visible characters from the current terminal screen
 - `!autoscreenshoton`: turn automatic post-reply screenshots on
 - `!autoscreenshotoff`: turn automatic post-reply screenshots off
 - `!autoscreenshot`: show the current on/off state
@@ -251,7 +254,7 @@ If a normal text or control request is **still in progress after the configured 
 - `!replyformatcommand`: switch Discord replies to code block mode
 - `!replyformattext`: switch Discord replies to plain text mode
 
-`!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting.
+`!text` only accepts `1-9500`, `!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting. In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters plus repeated horizontal whitespace runs longer than 5 characters are compressed down to 5. The requested `!text` count is based on this **post-compression reply length**. Long replies are split using the normal Discord reply chunking rules.
 
 When you attach **Discord files** to a normal message, the app saves them under `AppData\Roaming\...\discord-bridge\incoming-files\...` and prepends a comment block like this before sending the message to the terminal:
 

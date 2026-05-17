@@ -54,7 +54,9 @@ export class SessionSnapshotMirror {
   async capture(reason: TerminalSnapshotReason): Promise<TerminalSessionSnapshot> {
     await this.flush('capture');
 
-    const screenText = serializeBuffer(this.terminal.buffer.active);
+    const screenText = serializeBuffer(this.terminal.buffer.active, {
+      preserveWrapBoundaries: true
+    });
     const capturedAt = new Date().toISOString();
     const hash = createHash('sha256').update(screenText).digest('hex');
     this.lastSnapshotHash = hash;
@@ -74,6 +76,13 @@ export class SessionSnapshotMirror {
       hash,
       rawTranscriptLength: this.rawTranscript.length
     };
+  }
+
+  async getVisibleScreenText(options?: { preserveWrapBoundaries?: boolean }): Promise<string> {
+    await this.flush('capture');
+    return serializeBuffer(this.terminal.buffer.active, {
+      preserveWrapBoundaries: options?.preserveWrapBoundaries ?? true
+    });
   }
 
   async getState(summary: {
@@ -139,8 +148,12 @@ function wait(durationMs: number): Promise<void> {
   });
 }
 
-function serializeBuffer(buffer: Terminal['buffer']['active']): string {
+function serializeBuffer(
+  buffer: Terminal['buffer']['active'],
+  options?: { preserveWrapBoundaries?: boolean }
+): string {
   let result = '';
+  const preserveWrapBoundaries = options?.preserveWrapBoundaries ?? false;
 
   for (let index = 0; index < buffer.length; index += 1) {
     const line = buffer.getLine(index);
@@ -150,7 +163,7 @@ function serializeBuffer(buffer: Terminal['buffer']['active']): string {
       continue;
     }
 
-    if (line?.isWrapped) {
+    if (line?.isWrapped && !preserveWrapBoundaries) {
       result += text;
       continue;
     }

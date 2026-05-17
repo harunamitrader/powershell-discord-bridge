@@ -15,6 +15,8 @@
 - `!left`, `!right`, `!left N`, `!right N`, `!leftN`, `!rightN` の左右矢印キーコマンド
 - `!replyformat`, `!replyformatcommand`, `!replyformattext` コマンド
 - `!redraw` で Discord から terminal の手動再描画 jiggle を実行するコマンド
+- `!text N`, `!textN` で現在表示中の terminal テキスト末尾を最大 9500 文字まで返信するコマンド
+- 通常返信と `!text` 返信で visual wrap の改行位置を維持する動作
 - `!/command` と `!noenterTEXT` の入力モード切り替え
 - アプリ内 terminal で `Ctrl+V` によるクリップボードテキスト貼り付け
 - advanced 向けに、ローカル AI CLI / shell から `slot + text + optional Enter` を送る `slot:send` CLI と skill テンプレート
