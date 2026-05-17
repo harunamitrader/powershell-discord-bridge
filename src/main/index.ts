@@ -11,6 +11,7 @@ import { TerminalAutomationService } from './bridge/terminalAutomationService';
 import { PreferencesStore } from './app/preferencesStore';
 import { dismissStartupSplash } from './app/startupSplashSignal';
 import { TerminalSlotService } from './app/terminalSlotService';
+import { LocalAutomationServer } from './automation/localAutomationServer';
 import { registerIpc } from './ipc/registerIpc';
 import { TerminalSessionManager } from './terminal/terminalSessionManager';
 
@@ -24,6 +25,7 @@ let mainWindow: BrowserWindow | undefined;
 let terminalSessionManager: TerminalSessionManager | undefined;
 let discordBridgeService: DiscordBridgeService | undefined;
 let artifactPublishService: ArtifactPublishService | undefined;
+let localAutomationServer: LocalAutomationServer | undefined;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 async function bootstrap(): Promise<void> {
@@ -48,6 +50,7 @@ async function bootstrap(): Promise<void> {
     preferencesStore
   );
   artifactPublishService = new ArtifactPublishService(preferencesStore, terminalSlotService, discordBridgeService);
+  localAutomationServer = new LocalAutomationServer(terminalSlotService, terminalAutomationService, appLogStore);
   artifactPublishService.initializeDefaults();
 
   terminalSessionManager.on('session-exit', ({ sessionId }) => {
@@ -73,6 +76,7 @@ async function bootstrap(): Promise<void> {
   });
 
   terminalSlotService.ensureSessions();
+  localAutomationServer.start();
 
   try {
     await discordBridgeService.start();
@@ -138,6 +142,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  localAutomationServer?.stop();
   artifactPublishService?.stop();
   discordBridgeService?.stop();
   terminalSessionManager?.disposeAll();

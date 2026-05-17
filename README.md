@@ -38,6 +38,7 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す（busy 中も即時取得）
 - terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
+- ローカルの AI CLI / shell からも、slot 指定でプレーンテキストを直接送れる
 - アプリ側の terminal では `Ctrl+C` で選択テキストをコピーし、`Ctrl+V` でクリップボードのテキストを貼り付けられる
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
@@ -191,6 +192,30 @@ npm run setup:shortcuts
 各枠は固定で、増減はできません。  
 ワークスペース名を変更した場合は、対応する Discord チャンネル名も同じ名前に追従して変更されます。  
 各枠の PowerShell は **Restart** で再起動できます。
+
+### Advanced: ローカル AI / shell から slot にテキスト送信する
+
+これは **advanced 向けのローカル自動化機能** です。通常運用は引き続き **Discord から各 slot に送る使い方** を前提にしてください。
+
+実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot4 に plain text を送る**最小操作を使えます。
+
+```powershell
+npm run slot:send -- --slot slot3 --text "この差分を見て"
+```
+
+- `--slot` は `1-4` / `slot1-slot4`
+- `--text` を省略した場合は **stdin** から読みます
+- `--no-enter` を付けると Enter なしで入力します
+- Electron アプリが起動していない場合は失敗します
+
+詳しい使い方と skill 設定方法は `docs\advanced-local-ai-slot-send.md` を見てください。Copilot 用の skill テンプレートは `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md` に置いてあります。
+
+```powershell
+@'
+multi-line prompt
+line 2
+'@ | node .\scripts\bridge-send-slot.cjs --slot slot4
+```
 
 ### よく使うコマンド
 

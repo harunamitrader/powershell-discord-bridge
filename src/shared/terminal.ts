@@ -1,7 +1,7 @@
 export type SessionStatus = 'starting' | 'ready' | 'exited';
 export type TerminalSessionMode = 'desktop' | 'bridge';
 export type TerminalResizeMode = 'fit' | 'fixed';
-export type TerminalWriteSource = 'local' | 'bridge' | 'system';
+export type TerminalWriteSource = 'local' | 'bridge' | 'system' | 'automation';
 export type TerminalControlKey = 'ctrl-c' | 'esc' | 'enter' | 'up' | 'down' | 'left' | 'right';
 export type TerminalSnapshotReason = 'before-send' | 'after-complete' | 'manual';
 export type TerminalSlotId = 1 | 2 | 3 | 4;

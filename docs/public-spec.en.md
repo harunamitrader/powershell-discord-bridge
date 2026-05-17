@@ -102,12 +102,14 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - Repeated `!up` / `!down` / `!left` / `!right` inputs support `1-20` presses, with a default send interval of `100ms`
 - Files under `discord-publish` are automatically uploaded to the artifact channel on both create and update, and successful uploads send the file only
 - If a normal text or control request is still unfinished after the configured delay, the bridge sends one interim terminal screenshot as an additional progress reply
+- Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + text + optional Enter` request shape through a local-only automation endpoint
 
 ## 6. Safety-related behavior
 
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
 - `ALLOW_GUILD_ID` can optionally restrict operation to a single guild
+- The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3`. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`
 - Delayed inflight screenshots are enabled by default and can be changed through `preferences.json` with `bridgeSettings.inflightScreenshotOnRunningRequest` and `bridgeSettings.timing.inflightScreenshotDelayMs`
 - If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
 - Each slot stores its Discord channel ID and reconnects to the same channel after restart

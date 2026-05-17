@@ -23,6 +23,7 @@
     "build": "npm run clean && npm run build:electron && npm run build:renderer",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
+    "slot:send": "node .\\scripts\\bridge-send-slot.cjs",
     "start": "cross-env NODE_ENV=production electron .",
     "setup:shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\install-shortcuts.ps1",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"

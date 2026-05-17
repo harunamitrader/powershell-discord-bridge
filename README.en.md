@@ -38,6 +38,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 - Return an **app window screenshot** with `!windowscreenshot` / `!wss` even while busy
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
+- Also send plain text directly to slot1-slot4 from a local AI CLI or shell
 - In the app terminal, use `Ctrl+C` to copy the current selection and `Ctrl+V` to paste clipboard text into the session
 - Let you watch the same live session from the app UI
 
@@ -191,6 +192,30 @@ When Discord sends a normal **text or control** request, if the app window is **
 The number of slots is fixed.  
 If you rename a workspace, the linked Discord channel name follows that new name.  
 Each PowerShell slot can be restarted with **Restart**.
+
+### Advanced: Send text to a slot from a local AI CLI or shell
+
+This is an **advanced local automation feature**. The normal workflow should still be **sending messages from Discord to each slot**.
+
+The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send plain text to **slot1-slot4** without going through Discord.
+
+```powershell
+npm run slot:send -- --slot slot3 --text "Review this diff"
+```
+
+- `--slot` accepts `1-4` or `slot1-slot4`
+- If `--text` is omitted, the CLI reads from **stdin**
+- Add `--no-enter` to send the text without Enter
+- The command fails clearly when the Electron app is not running
+
+For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`.
+
+```powershell
+@'
+multi-line prompt
+line 2
+'@ | node .\scripts\bridge-send-slot.cjs --slot slot4
+```
 
 ### Common commands
 
