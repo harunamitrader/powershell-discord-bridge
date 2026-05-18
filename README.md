@@ -39,7 +39,7 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - `!text N` / `!textN` で **現在表示中の terminal テキスト末尾**を最大 N 文字まで Discord に返す
 - terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
-- ローカルの AI CLI / shell からも、slot 指定でプレーンテキストを直接送れる
+- ローカルの AI CLI / shell からも、送信先 slot をアクティブ化したうえでプレーンテキストを直接送れる
 - アプリ側の terminal では `Ctrl+C` で選択テキストをコピーし、`Ctrl+V` でクリップボードのテキストを貼り付けられる
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
@@ -198,7 +198,7 @@ npm run setup:shortcuts
 
 これは **advanced 向けのローカル自動化機能** です。通常運用は引き続き **Discord から各 slot に送る使い方** を前提にしてください。
 
-実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot4 に plain text を送る**最小操作を使えます。
+実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot4 に plain text を送る**最小操作を使えます。送信時は、対象 slot を先にアプリ側でアクティブ化します。
 
 ```powershell
 npm run slot:send -- --slot slot3 --text "この差分を見て"

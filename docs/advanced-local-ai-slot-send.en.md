@@ -10,6 +10,7 @@ It provides the smallest possible local AI handoff: **send `slot + text + option
 - slots are `slot1-slot4`
 - text is sent as plain text
 - Enter can be omitted when needed
+- the target slot is activated in the app before sending
 - the feature does not depend on which AI or tool is running inside the slot
 
 ## Preconditions

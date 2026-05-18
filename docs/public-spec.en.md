@@ -107,7 +107,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - If a normal text or control request is still unfinished after the configured delay, the bridge sends one interim terminal screenshot as an additional progress reply together with a delay label such as `[inflight screenshot after 10s while running: terminal]`
 - In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters, repeated horizontal whitespace runs longer than 5 characters, and repeated line breaks longer than 5 are compressed down to 5
 - `!text` only accepts integers from `1-9500`, and uses that **post-compression reply length** before normal reply chunking is applied
-- Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + text + optional Enter` request shape through a local-only automation endpoint
+- Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + text + optional Enter` request shape through a local-only automation endpoint, activating the target slot in the app before sending
 - Those sends now return a lightweight **delivery likelihood check** with `likely_delivered`, `uncertain`, or `likely_not_delivered`
 - Only when requested by the user, local automation can also fetch visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
 

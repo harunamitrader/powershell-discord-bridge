@@ -5,6 +5,7 @@ import type {
   BridgeSettings,
   BridgeSettingsUpdate,
   BootstrapState,
+  TerminalSessionActivatedEvent,
   TerminalAutomationTurnRequest,
   TerminalControlRequest,
   TerminalInputLockUpdate,
@@ -26,6 +27,7 @@ import type {
   TerminalSlotSettingsUpdate,
   TerminalSlotSettingsUpdateResult
 } from '../../shared/terminal';
+import { LocalAutomationServer } from '../automation/localAutomationServer';
 import { TerminalAutomationService } from '../bridge/terminalAutomationService';
 import { DiscordBridgeService } from '../bridge/discordBridgeService';
 import { PreferencesStore } from '../app/preferencesStore';
@@ -43,6 +45,7 @@ interface RegisterIpcOptions {
   terminalSlotService: TerminalSlotService;
   appLogStore: AppLogStore;
   artifactPublishService: ArtifactPublishService;
+  localAutomationServer: LocalAutomationServer;
 }
 
 export function registerIpc(options: RegisterIpcOptions): void {
@@ -54,7 +57,8 @@ export function registerIpc(options: RegisterIpcOptions): void {
     discordBridgeService,
     terminalSlotService,
     appLogStore,
-    artifactPublishService
+    artifactPublishService,
+    localAutomationServer
   } = options;
 
   const sendToRenderer = (channel: string, payload: unknown): void => {
@@ -79,7 +83,7 @@ export function registerIpc(options: RegisterIpcOptions): void {
   const handleSessionExit = (event: TerminalSessionExitEvent) => {
     sendToRenderer('terminal:session-exit', event);
   };
-  const handleSessionActivated = (event: { sessionId: string; source: 'discord' }) => {
+  const handleSessionActivated = (event: TerminalSessionActivatedEvent) => {
     sendToRenderer('terminal:session-activated', event);
   };
   const handleAppLogEntry = (entry: { id: number; timestamp: string; stream: 'stdout' | 'stderr'; text: string }) => {
@@ -90,6 +94,7 @@ export function registerIpc(options: RegisterIpcOptions): void {
   terminalSessionManager.on('session-data', handleSessionData);
   terminalSessionManager.on('session-exit', handleSessionExit);
   const unsubscribeSessionActivated = discordBridgeService.onSessionActivated(handleSessionActivated);
+  const unsubscribeAutomationSessionActivated = localAutomationServer.onSessionActivated(handleSessionActivated);
   const unsubscribeAppLogEntry = appLogStore.onEntry(handleAppLogEntry);
 
   window.once('closed', () => {
@@ -97,6 +102,7 @@ export function registerIpc(options: RegisterIpcOptions): void {
     terminalSessionManager.off('session-data', handleSessionData);
     terminalSessionManager.off('session-exit', handleSessionExit);
     unsubscribeSessionActivated();
+    unsubscribeAutomationSessionActivated();
     unsubscribeAppLogEntry();
   });
 

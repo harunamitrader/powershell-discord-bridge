@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { AttachmentBuilder, ChannelType, Client, GatewayIntentBits, type Attachment, type Guild, type Message, type TextChannel } from 'discord.js';
 import type {
+  TerminalSessionActivatedEvent,
   TerminalAutomationTurnResult,
   TerminalControlKey,
   TerminalSessionRenameRequest,
@@ -11,6 +12,7 @@ import type {
   TerminalSlotSettingsUpdate,
   TerminalSlotSettingsUpdateResult
 } from '../../shared/terminal';
+import { ensureMainWindowReadyForTerminalInput } from '../app/ensureMainWindowReadyForTerminalInput';
 import {
   MAX_BRIDGE_COLS,
   MAX_BRIDGE_ROWS,
@@ -64,7 +66,6 @@ const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
 const TEXT_COMMAND_MIN_CHARS = 1;
 const TEXT_COMMAND_MAX_CHARS = 9500;
-const MAIN_WINDOW_ACTIVATION_SETTLE_MS = 200;
 const HELP_REPLY = [
   'Bridge commands:',
   '!help',
@@ -178,7 +179,7 @@ export class DiscordBridgeService {
   private client?: Client;
   private readonly requestContexts = new Map<string, RequestContext>();
   private readonly abortingChannels = new Set<string>();
-  private readonly sessionActivatedListeners = new Set<(event: { sessionId: string; source: 'discord' }) => void>();
+  private readonly sessionActivatedListeners = new Set<(event: TerminalSessionActivatedEvent) => void>();
   private readonly replyFormatter: DiscordReplyFormatter;
   private readonly attachmentService: DiscordAttachmentService;
 
@@ -246,7 +247,7 @@ export class DiscordBridgeService {
     this.abortingChannels.clear();
   }
 
-  onSessionActivated(listener: (event: { sessionId: string; source: 'discord' }) => void): () => void {
+  onSessionActivated(listener: (event: TerminalSessionActivatedEvent) => void): () => void {
     this.sessionActivatedListeners.add(listener);
     return () => {
       this.sessionActivatedListeners.delete(listener);
@@ -602,7 +603,7 @@ export class DiscordBridgeService {
 
     try {
       if (parsed.kind === 'text') {
-        await this.ensureMainWindowReadyForTerminalInput();
+        await ensureMainWindowReadyForTerminalInput(this.getMainWindow());
         await this.terminalAutomationService.sendInput({
           sessionId,
           content: parsed.content,
@@ -610,7 +611,7 @@ export class DiscordBridgeService {
           source: 'bridge'
         });
       } else if (parsed.kind === 'control') {
-        await this.ensureMainWindowReadyForTerminalInput();
+        await ensureMainWindowReadyForTerminalInput(this.getMainWindow());
         await this.terminalAutomationService.sendControlKey(
           sessionId,
           parsed.key,
@@ -843,7 +844,7 @@ export class DiscordBridgeService {
 
     try {
       if (request.kind === 'text' || request.kind === 'control') {
-        await this.ensureMainWindowReadyForTerminalInput();
+        await ensureMainWindowReadyForTerminalInput(this.getMainWindow());
       }
       const result = await this.executeRequest(binding.sessionId, request);
       delayedInflightScreenshot?.cancel();
@@ -1019,35 +1020,6 @@ export class DiscordBridgeService {
       ]);
     } catch (error) {
       console.warn(`Delayed inflight screenshot failed for request ${requestId}`, error);
-    }
-  }
-
-  private async ensureMainWindowReadyForTerminalInput(): Promise<void> {
-    const mainWindow = this.getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return;
-    }
-
-    let attemptedActivation = false;
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-      attemptedActivation = true;
-    }
-
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
-      attemptedActivation = true;
-    }
-
-    if (!mainWindow.isFocused()) {
-      mainWindow.show();
-      mainWindow.focus();
-      mainWindow.moveTop();
-      attemptedActivation = true;
-    }
-
-    if (attemptedActivation) {
-      await wait(MAIN_WINDOW_ACTIVATION_SETTLE_MS);
     }
   }
 

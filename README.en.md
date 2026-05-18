@@ -39,7 +39,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 - Return the tail of the **currently visible terminal text** with `!text N` / `!textN`
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
-- Also send plain text directly to slot1-slot4 from a local AI CLI or shell
+- Also send plain text directly to slot1-slot4 from a local AI CLI or shell, activating the target slot first
 - In the app terminal, use `Ctrl+C` to copy the current selection and `Ctrl+V` to paste clipboard text into the session
 - Let you watch the same live session from the app UI
 
@@ -198,7 +198,7 @@ Each PowerShell slot can be restarted with **Restart**.
 
 This is an **advanced local automation feature**. The normal workflow should still be **sending messages from Discord to each slot**.
 
-The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send plain text to **slot1-slot4** without going through Discord.
+The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send plain text to **slot1-slot4** without going through Discord. Those sends activate the target slot in the app first.
 
 ```powershell
 npm run slot:send -- --slot slot3 --text "Review this diff"

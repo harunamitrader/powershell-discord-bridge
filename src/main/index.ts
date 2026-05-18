@@ -50,7 +50,7 @@ async function bootstrap(): Promise<void> {
     preferencesStore
   );
   artifactPublishService = new ArtifactPublishService(preferencesStore, terminalSlotService, discordBridgeService);
-  localAutomationServer = new LocalAutomationServer(
+  const localAutomation = new LocalAutomationServer(
     terminalSlotService,
     terminalAutomationService,
     terminalSessionManager,
@@ -58,6 +58,7 @@ async function bootstrap(): Promise<void> {
     () => mainWindow,
     appLogStore
   );
+  localAutomationServer = localAutomation;
   artifactPublishService.initializeDefaults();
 
   terminalSessionManager.on('session-exit', ({ sessionId }) => {
@@ -71,10 +72,11 @@ async function bootstrap(): Promise<void> {
     preferencesStore,
     terminalAutomationService,
     terminalSessionManager,
-      terminalSlotService,
-      appLogStore,
-      artifactPublishService
-    });
+    terminalSlotService,
+    appLogStore,
+    artifactPublishService,
+    localAutomationServer: localAutomation
+  });
 
   window.once('closed', () => {
     if (mainWindow === window) {
@@ -83,7 +85,7 @@ async function bootstrap(): Promise<void> {
   });
 
   terminalSlotService.ensureSessions();
-  localAutomationServer.start();
+  localAutomation.start();
 
   try {
     await discordBridgeService.start();

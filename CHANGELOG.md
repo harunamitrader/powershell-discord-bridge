@@ -38,6 +38,7 @@
 
 - 返信抽出を、再描画後に取得した before/after `screenText` ベースへ変更
 - 通常返信・`!text` 返信・fallback 返信で、連続改行も 5 回までに圧縮するよう変更
+- ローカル AI / shell からの `slot:send` / local automation 送信でも、対象 slot をアクティブ化してから入力するよう変更
 - busy 中の Discord text/control 入力は、キューせず実行中セッションへ直接送る仕様に変更
 - busy 中でもローカル UI から入力できるよう変更
 - 通常の text 送信前待機を延長し、before-send 再描画後・snapshot 後・Enter 前の各間隔を広げて Copilot/TUI への入力反映を待ちやすく変更

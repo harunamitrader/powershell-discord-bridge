@@ -10,6 +10,7 @@
 - slot は `slot1-slot4`
 - text は plain text のまま送る
 - 必要なら Enter なしにもできる
+- 送信前に対象 slot をアプリ側でアクティブ化する
 - slot 内で何の AI / tool が動いているかは前提にしない
 
 ## 前提

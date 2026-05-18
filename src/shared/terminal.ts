@@ -141,9 +141,11 @@ export interface TerminalSessionExitEvent {
   exitCode: number;
 }
 
+export type TerminalSessionActivationSource = 'discord' | 'automation';
+
 export interface TerminalSessionActivatedEvent {
   sessionId: string;
-  source: 'discord';
+  source: TerminalSessionActivationSource;
 }
 
 export interface TerminalSessionRenameRequest {

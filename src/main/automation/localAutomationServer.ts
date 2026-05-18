@@ -2,8 +2,15 @@ import { app, type BrowserWindow } from 'electron';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import type { TerminalSessionSnapshot, TerminalSessionState, TerminalSlotId, TerminalWriteSource } from '../../shared/terminal';
+import type {
+  TerminalSessionActivatedEvent,
+  TerminalSessionSnapshot,
+  TerminalSessionState,
+  TerminalSlotId,
+  TerminalWriteSource
+} from '../../shared/terminal';
 import { AppLogStore } from '../app/appLogStore';
+import { ensureMainWindowReadyForTerminalInput } from '../app/ensureMainWindowReadyForTerminalInput';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSlotService } from '../app/terminalSlotService';
 import { TerminalAutomationService } from '../bridge/terminalAutomationService';
@@ -16,6 +23,7 @@ const DEFAULT_DELIVERY_CHECK_DELAY_MS = 3000;
 const DEFAULT_TEXT_OBSERVE_MAX_CHARS = 4000;
 const OBSERVE_TEXT_TAIL_CHARS = 600;
 const OBSERVE_TRANSCRIPT_TAIL_CHARS = 600;
+const SESSION_ACTIVATION_SETTLE_MS = 75;
 
 interface LocalAutomationSendTextRequest {
   kind: 'send-text';
@@ -125,6 +133,7 @@ type LocalAutomationResponse =
 
 export class LocalAutomationServer {
   private server?: net.Server;
+  private readonly sessionActivatedListeners = new Set<(event: TerminalSessionActivatedEvent) => void>();
 
   constructor(
     private readonly terminalSlotService: TerminalSlotService,
@@ -195,6 +204,13 @@ export class LocalAutomationServer {
     this.log('stopped');
   }
 
+  onSessionActivated(listener: (event: TerminalSessionActivatedEvent) => void): () => void {
+    this.sessionActivatedListeners.add(listener);
+    return () => {
+      this.sessionActivatedListeners.delete(listener);
+    };
+  }
+
   private async respond(socket: net.Socket, payload: string): Promise<void> {
     const response = await this.handlePayload(payload);
     socket.end(`${JSON.stringify(response)}\n`);
@@ -227,6 +243,7 @@ export class LocalAutomationServer {
     const session = this.terminalSlotService.ensureSession(request.slot);
     const source: TerminalWriteSource = 'automation';
     const acceptedAt = new Date().toISOString();
+    await this.activateSessionForInput(session.id);
     const beforeSnapshot = await this.terminalSessionManager.getBufferSnapshot(session.id, 'manual');
     const beforeState = await this.terminalSessionManager.getSessionState(session.id);
     const beforeTranscriptOffset = this.terminalSessionManager.getRawTranscriptOffset(session.id);
@@ -419,6 +436,21 @@ export class LocalAutomationServer {
       visibleTail: truncateTail(afterSnapshot.screenText, OBSERVE_TEXT_TAIL_CHARS),
       transcriptTail: truncateTail(transcriptDelta, OBSERVE_TRANSCRIPT_TAIL_CHARS)
     };
+  }
+
+  private async activateSessionForInput(sessionId: string): Promise<void> {
+    this.emitSessionActivated(sessionId);
+    await wait(SESSION_ACTIVATION_SETTLE_MS);
+    await ensureMainWindowReadyForTerminalInput(this.getMainWindow());
+  }
+
+  private emitSessionActivated(sessionId: string): void {
+    for (const listener of this.sessionActivatedListeners) {
+      listener({
+        sessionId,
+        source: 'automation'
+      });
+    }
   }
 
   private getTerminalScreenshotTiming() {
