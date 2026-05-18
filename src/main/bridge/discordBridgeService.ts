@@ -48,6 +48,7 @@ const FORCE_STOPPED_REPLY = '[terminal force-stopped and restarted]';
 const TERMINAL_RESTARTED_REPLY = '[terminal restarted]';
 const TERMINAL_REDRAWN_REPLY = '[terminal redrawn]';
 const APP_RESTARTING_REPLY = '[app restarting]';
+const APP_READY_NOTIFICATION = '[PowerShell Discord Bridge ready: slot1 connected]';
 const NO_ACTIVE_REQUEST_REPLY = '[no active request]';
 const QUEUE_FULL_REPLY = 'Bridge busy: one request is already running and one is already queued.';
 const AUTO_SCREENSHOT_ENABLED_REPLY = '[auto screenshot after reply: enabled]';
@@ -266,6 +267,29 @@ export class DiscordBridgeService {
     } catch (error) {
       console.error('Failed to bind artifact publish channel', error);
     }
+  }
+
+  async sendStartupReadyMessage(slotId: TerminalSlotId = 1): Promise<void> {
+    if (!this.client?.isReady()) {
+      return;
+    }
+
+    const slot = this.terminalSlotService.getSlot(slotId);
+    if (!slot.channelId) {
+      return;
+    }
+
+    const channel = await this.fetchGuildTextChannel(slot.channelId);
+    if (!channel) {
+      return;
+    }
+
+    await channel.send({
+      content: APP_READY_NOTIFICATION,
+      allowedMentions: {
+        parse: []
+      }
+    });
   }
 
   async restartSlot(slotId: TerminalSlotId): Promise<TerminalSessionSummary> {
@@ -990,7 +1014,9 @@ export class DiscordBridgeService {
     }
 
     try {
-      await this.sendReplies(message, [], [await this.createTerminalScreenshotAttachment(sessionId)]);
+      await this.sendReplies(message, this.formatReplyText(this.getInflightScreenshotAttachmentReply()), [
+        await this.createTerminalScreenshotAttachment(sessionId)
+      ]);
     } catch (error) {
       console.warn(`Delayed inflight screenshot failed for request ${requestId}`, error);
     }
@@ -1189,6 +1215,11 @@ export class DiscordBridgeService {
 
   private formatVisibleTextReply(text: string, maxChars: number): string[] {
     return this.replyFormatter.formatVisibleText(text, maxChars, this.preferencesStore.getBridgeSettings().replyFormat);
+  }
+
+  private getInflightScreenshotAttachmentReply(): string {
+    const delaySeconds = Math.round(this.preferencesStore.getBridgeSettings().timing.inflightScreenshotDelayMs / 1000);
+    return `[inflight screenshot after ${delaySeconds}s while running: terminal]`;
   }
 
   private async setInputLock(sessionId: string, locked: boolean): Promise<void> {

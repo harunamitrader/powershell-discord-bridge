@@ -9,9 +9,10 @@ interface ReplyFormatterOptions {
 
 const CODE_BLOCK_PREFIX = '```text\n';
 const CODE_BLOCK_SUFFIX = '\n```';
-const MAX_COMPRESSED_SYMBOL_RUN_LENGTH = 5;
+const MAX_COMPRESSED_RUN_LENGTH = 5;
 const REPEATED_SYMBOL_RUN_PATTERN = /([^\p{L}\p{N}\s])\1{4,}/gu;
 const REPEATED_HORIZONTAL_WHITESPACE_RUN_PATTERN = /[^\S\r\n]{5,}/g;
+const REPEATED_LINE_BREAK_RUN_PATTERN = /\n{5,}/g;
 
 export class DiscordReplyFormatter {
   constructor(private readonly options: ReplyFormatterOptions) {}
@@ -61,15 +62,19 @@ function normalizeReplyText(text: string, emptyFallback: string): string {
 }
 
 function compressReplyText(text: string): string {
-  return collapseRepeatedSymbolRuns(collapseRepeatedHorizontalWhitespaceRuns(text));
+  return collapseRepeatedSymbolRuns(collapseRepeatedHorizontalWhitespaceRuns(collapseRepeatedLineBreakRuns(text)));
+}
+
+function collapseRepeatedLineBreakRuns(text: string): string {
+  return text.replace(REPEATED_LINE_BREAK_RUN_PATTERN, (match) => match.slice(0, MAX_COMPRESSED_RUN_LENGTH));
 }
 
 function collapseRepeatedHorizontalWhitespaceRuns(text: string): string {
-  return text.replace(REPEATED_HORIZONTAL_WHITESPACE_RUN_PATTERN, (match) => match.slice(0, MAX_COMPRESSED_SYMBOL_RUN_LENGTH));
+  return text.replace(REPEATED_HORIZONTAL_WHITESPACE_RUN_PATTERN, (match) => match.slice(0, MAX_COMPRESSED_RUN_LENGTH));
 }
 
 function collapseRepeatedSymbolRuns(text: string): string {
-  return text.replace(REPEATED_SYMBOL_RUN_PATTERN, (_match, symbol: string) => symbol.repeat(MAX_COMPRESSED_SYMBOL_RUN_LENGTH));
+  return text.replace(REPEATED_SYMBOL_RUN_PATTERN, (_match, symbol: string) => symbol.repeat(MAX_COMPRESSED_RUN_LENGTH));
 }
 
 function selectVisibleTextReplyText(text: string, maxChars: number): string {

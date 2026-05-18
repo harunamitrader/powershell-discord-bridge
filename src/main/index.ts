@@ -89,6 +89,7 @@ async function bootstrap(): Promise<void> {
     await discordBridgeService.start();
     await discordBridgeService.ensureStartupBindings();
     artifactPublishService.start();
+    await discordBridgeService.sendStartupReadyMessage(1);
   } catch (error) {
     console.error('Failed to start Discord bridge service', error);
   }

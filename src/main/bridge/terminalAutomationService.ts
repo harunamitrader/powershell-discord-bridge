@@ -508,7 +508,7 @@ function compressDecorativeRuns(text: string): string {
 }
 
 function shouldCompressRepeatedCharacter(character: string): boolean {
-  return character !== '\n' && !isComparableCharacter(character);
+  return !isComparableCharacter(character);
 }
 
 function wait(durationMs: number): Promise<void> {

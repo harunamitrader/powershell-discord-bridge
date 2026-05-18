@@ -17,6 +17,8 @@
 - `!redraw` で Discord から terminal の手動再描画 jiggle を実行するコマンド
 - `!text N`, `!textN` で現在表示中の terminal テキスト末尾を最大 9500 文字まで返信するコマンド
 - 通常返信と `!text` 返信で visual wrap の改行位置を維持する動作
+- delayed inflight screenshot のラベルに設定秒数を含め、settings / `preferences.json` 側も秒単位で扱う変更
+- 起動完了後と `!rsa` による再起動後に、slot1 の Discord チャンネルへ bridge ready メッセージを送る動作
 - `!/command` と `!noenterTEXT` の入力モード切り替え
 - アプリ内 terminal で `Ctrl+V` によるクリップボードテキスト貼り付け
 - advanced 向けに、ローカル AI CLI / shell から `slot + text + optional Enter` を送る `slot:send` CLI と skill テンプレート
@@ -35,6 +37,7 @@
 ### Changed
 
 - 返信抽出を、再描画後に取得した before/after `screenText` ベースへ変更
+- 通常返信・`!text` 返信・fallback 返信で、連続改行も 5 回までに圧縮するよう変更
 - busy 中の Discord text/control 入力は、キューせず実行中セッションへ直接送る仕様に変更
 - busy 中でもローカル UI から入力できるよう変更
 - 通常の text 送信前待機を延長し、before-send 再描画後・snapshot 後・Enter 前の各間隔を広げて Copilot/TUI への入力反映を待ちやすく変更

@@ -186,7 +186,7 @@ The shortcut uses `assets\app-icon.ico` and starts the app through the hidden la
 10. Files saved in `discord-publish` are automatically uploaded to the artifact channel on both create and update
 11. You can open **Logs** at the top right to inspect startup logs, bridge logs, and terminal input logs inside the app overlay
 
-If a normal text or control request is **still running after 10 seconds**, the bridge sends **one interim terminal screenshot** so you can confirm that the input actually reached the terminal. If the request completes within 10 seconds, that interim screenshot is skipped and only the normal reply text plus the configured auto screenshot behavior are used. This feature is **enabled by default** and can be turned off or delayed from Settings and `preferences.json`.
+If a normal text or control request is **still running after 10 seconds**, the bridge sends **one interim terminal screenshot** so you can confirm that the input actually reached the terminal. That interim screenshot also includes a label such as `[inflight screenshot after 10s while running: terminal]` with the currently configured delay. If the request completes within 10 seconds, that interim screenshot is skipped and only the normal reply text plus the configured auto screenshot behavior are used. This feature is **enabled by default** and can be turned off or delayed from Settings and `preferences.json`.
 
 When Discord sends a normal **text or control** request, if the app window is **inactive or minimized**, the bridge makes a best-effort attempt to **restore and bring it to the foreground before** sending terminal input. This foreground activation is not applied to commands such as `!help`, screenshots, or settings changes.
 
@@ -254,7 +254,7 @@ If a normal text or control request is **still in progress after the configured 
 - `!replyformatcommand`: switch Discord replies to code block mode
 - `!replyformattext`: switch Discord replies to plain text mode
 
-`!text` only accepts `1-9500`, `!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting. In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters plus repeated horizontal whitespace runs longer than 5 characters are compressed down to 5. The requested `!text` count is based on this **post-compression reply length**. Long replies are split using the normal Discord reply chunking rules.
+`!text` only accepts `1-9500`, `!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting. In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters, repeated horizontal whitespace runs longer than 5 characters, and repeated line breaks longer than 5 are compressed down to 5. The requested `!text` count is based on this **post-compression reply length**. Long replies are split using the normal Discord reply chunking rules.
 
 When you attach **Discord files** to a normal message, the app saves them under `AppData\Roaming\...\discord-bridge\incoming-files\...` and prepends a comment block like this before sending the message to the terminal:
 
@@ -275,7 +275,7 @@ Open Settings from the top right of the Electron app.
 Settings are split into **Global** and **Per terminal** sections.
 
 - **Global:** auto screenshot on/off, Discord reply format, soft timeout / hard timeout, fixed bridge cols / rows (minimum rows is `15`)
-- **Global:** Delayed inflight terminal screenshot (default `ON`) and inflight screenshot delay (default `10000ms`, saved as `bridgeSettings.inflightScreenshotOnRunningRequest` / `bridgeSettings.timing.inflightScreenshotDelayMs`)
+- **Global:** Delayed inflight terminal screenshot (default `ON`) and inflight screenshot delay (default `10s`, saved as `bridgeSettings.inflightScreenshotOnRunningRequest` / `bridgeSettings.timing.inflightScreenshotDelaySeconds`)
 - **Global:** Artifact publish folder (default is `discord-publish` under terminal 1's cwd, destination channel is the auto-created `terminal-artifacts`)
 - **Global:** screen diff anchor chars (default `300`, saved as `bridgeSettings.diffAnchorChars` in `preferences.json`)
 - **Global:** bridge timing for redraw/input/Enter/repeat-key waits, plus completion detection, manual redraw, live view publish, screenshot capture, app restart, and attachment download waits/timeouts saved under `bridgeSettings.timing` in `%APPDATA%\PowerShell Discord Bridge\preferences.json`

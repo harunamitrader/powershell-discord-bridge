@@ -5,6 +5,32 @@ import path from 'node:path';
 
 interface StoredWindowBounds extends Pick<Rectangle, 'x' | 'y' | 'width' | 'height'> {}
 
+interface StoredBridgeTimingSettings {
+  inflightScreenshotDelaySeconds?: number;
+  inflightScreenshotDelayMs?: number;
+  redrawWaitAfterShrinkMs?: number;
+  beforeSendRedrawRestoreMs?: number;
+  afterCompleteRedrawRestoreMs?: number;
+  beforeSendPostRedrawDelayMs?: number;
+  preTextInputSnapshotDelayMs?: number;
+  textSubmitEnterDelayMs?: number;
+  repeatedControlKeyDelayMs?: number;
+  completionSettleMs?: number;
+  completionNoOutputTimeoutMs?: number;
+  completionPollIntervalMs?: number;
+  completionStablePollCount?: number;
+  manualRedrawWaitAfterShrinkMs?: number;
+  manualRedrawWaitAfterRestoreMs?: number;
+  liveViewSnapshotDebounceMs?: number;
+  snapshotMirrorFlushTimeoutMs?: number;
+  windowScreenshotCaptureDelayMs?: number;
+  terminalScreenshotResizeSettleMs?: number;
+  terminalScreenshotPollIntervalMs?: number;
+  terminalScreenshotReadyTimeoutMs?: number;
+  appRestartDelayMs?: number;
+  attachmentDownloadTimeoutMs?: number;
+}
+
 interface StoredPreferences {
   lastCwd?: string;
   windowBounds?: StoredWindowBounds;
@@ -24,30 +50,7 @@ interface StoredPreferences {
       watchDirectory?: string;
       channelId?: string;
     };
-    timing?: {
-      inflightScreenshotDelayMs?: number;
-      redrawWaitAfterShrinkMs?: number;
-      beforeSendRedrawRestoreMs?: number;
-      afterCompleteRedrawRestoreMs?: number;
-      beforeSendPostRedrawDelayMs?: number;
-      preTextInputSnapshotDelayMs?: number;
-      textSubmitEnterDelayMs?: number;
-      repeatedControlKeyDelayMs?: number;
-      completionSettleMs?: number;
-      completionNoOutputTimeoutMs?: number;
-      completionPollIntervalMs?: number;
-      completionStablePollCount?: number;
-      manualRedrawWaitAfterShrinkMs?: number;
-      manualRedrawWaitAfterRestoreMs?: number;
-      liveViewSnapshotDebounceMs?: number;
-      snapshotMirrorFlushTimeoutMs?: number;
-      windowScreenshotCaptureDelayMs?: number;
-      terminalScreenshotResizeSettleMs?: number;
-      terminalScreenshotPollIntervalMs?: number;
-      terminalScreenshotReadyTimeoutMs?: number;
-      appRestartDelayMs?: number;
-      attachmentDownloadTimeoutMs?: number;
-    };
+    timing?: StoredBridgeTimingSettings;
   };
 }
 
@@ -235,7 +238,7 @@ export class PreferencesStore {
       },
       timing: {
         inflightScreenshotDelayMs: clampInteger(
-          this.state.bridgeSettings?.timing?.inflightScreenshotDelayMs,
+          resolveInflightScreenshotDelayMs(this.state.bridgeSettings?.timing),
           MIN_TIMING_DELAY_MS,
           MAX_TIMING_DELAY_MS,
           DEFAULT_BRIDGE_SETTINGS.timing.inflightScreenshotDelayMs
@@ -371,6 +374,17 @@ export class PreferencesStore {
   }
 
   setBridgeSettings(update: BridgeSettingsUpdate): BridgeSettings {
+    const nextTiming = update.timing
+      ? {
+          ...this.state.bridgeSettings?.timing,
+          ...update.timing
+        }
+      : undefined;
+    if (nextTiming && update.timing?.inflightScreenshotDelayMs !== undefined) {
+      nextTiming.inflightScreenshotDelaySeconds = Math.round(update.timing.inflightScreenshotDelayMs / 1000);
+      delete nextTiming.inflightScreenshotDelayMs;
+    }
+
     this.state.bridgeSettings = {
       ...this.state.bridgeSettings,
       ...(update.autoScreenshotOnReply === undefined
@@ -401,10 +415,7 @@ export class PreferencesStore {
         : {}),
       ...(update.timing
         ? {
-            timing: {
-              ...this.state.bridgeSettings?.timing,
-              ...update.timing
-            }
+            timing: nextTiming
           }
         : {})
     };
@@ -471,6 +482,20 @@ export class PreferencesStore {
     delete (this.state as StoredPreferences & { defaultWorkspaceCwd?: string }).defaultWorkspaceCwd;
     this.save();
   }
+}
+
+function resolveInflightScreenshotDelayMs(
+  timing: StoredBridgeTimingSettings | undefined
+): number | undefined {
+  if (!timing) {
+    return undefined;
+  }
+
+  if (typeof timing.inflightScreenshotDelaySeconds === 'number') {
+    return timing.inflightScreenshotDelaySeconds * 1000;
+  }
+
+  return timing.inflightScreenshotDelayMs;
 }
 
 function clampInteger(value: number | undefined, min: number, max: number, fallback: number): number {
