@@ -18,6 +18,12 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 
 ![PowerShell Discord Bridge one-page overview](docs/images/readme-overview-ja.png)
 
+## 最近の追加機能
+
+<p align="center">
+  <img src="docs/images/readme-whats-new-ja-portrait.png" alt="PowerShell Discord Bridge recent additions overview" width="760" />
+</p>
+
 ## 画面イメージ
 
 ### アプリ画面

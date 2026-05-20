@@ -18,6 +18,12 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 
 ![PowerShell Discord Bridge one-page overview](docs/images/readme-overview-en.png)
 
+## Recent additions
+
+<p align="center">
+  <img src="docs/images/readme-whats-new-en-portrait.png" alt="PowerShell Discord Bridge README addendum highlights" width="760" />
+</p>
+
 ## Screenshots
 
 ### App window
