@@ -33,12 +33,15 @@
 - アプリ内で main process ログと terminal 入力ログを確認できる Logs オーバーレイ
 - デスクトップショートカット向けの hidden launcher
 - デスクトップショートカット起動中に出す一時的な起動メッセージウィンドウ
+- Cron ジョブ管理用の `bridge-cron-tui` を repo 同梱サブディレクトリとして追加
 
 ### Changed
 
 - 返信抽出を、再描画後に取得した before/after `screenText` ベースへ変更
 - 通常返信・`!text` 返信・fallback 返信で、連続改行も 5 回までに圧縮するよう変更
 - ローカル AI / shell からの `slot:send` / local automation 送信でも、対象 slot をアクティブ化してから入力するよう変更
+- `slot:send` / local automation に、既定 OFF・skill でも自動 ON しない送信元 slot 向け task complete 通知オプションを追加
+- Cron ジョブ定義の既定保存先をユーザーホーム配下から repo 内の `cron-jobs\` に変更
 - busy 中の Discord text/control 入力は、キューせず実行中セッションへ直接送る仕様に変更
 - busy 中でもローカル UI から入力できるよう変更
 - 通常の text 送信前待機を延長し、before-send 再描画後・snapshot 後・Enter 前の各間隔を広げて Copilot/TUI への入力反映を待ちやすく変更

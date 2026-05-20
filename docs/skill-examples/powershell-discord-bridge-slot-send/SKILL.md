@@ -45,6 +45,20 @@ line 2
 node .\scripts\bridge-send-slot.cjs --slot slot3 --text "draft only" --no-enter
 ```
 
+## Optional completion callback
+
+Completion callbacks are **OFF by default**, including when this skill is used by an AI.
+
+Only add `--notify-on-complete --origin-slot slotN` when:
+- the AI explicitly needs a callback in another slot before deciding the next step, or
+- the user explicitly asks to be notified back in the sender slot
+
+Example:
+
+```powershell
+node .\scripts\bridge-send-slot.cjs --slot slot3 --text "Notify slot2 when done" --notify-on-complete --origin-slot slot2
+```
+
 ## Optional inspection commands
 
 If the user explicitly asks what is visible in a slot, use:
@@ -74,3 +88,4 @@ For checking other slots, call `slot:observe -- --slot ... --text` per slot and 
 3. If the CLI says the Electron app is not running, report that plainly.
 4. Do not inspect any slot unless the user separately asks.
 5. When inspection is requested, prefer visible text first and screenshots only on request.
+6. Do NOT enable completion callbacks by default. Use them only when clearly needed.

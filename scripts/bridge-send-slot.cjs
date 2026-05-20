@@ -14,11 +14,20 @@ async function main() {
 
   const text = await resolveText(options);
   const slot = normalizeSlot(options.slot);
+  const originSlot = typeof options.originSlot === 'string' ? normalizeSlot(options.originSlot) : undefined;
+  validateNotifyOptions({
+    slot,
+    originSlot,
+    notifyOnComplete: options.notifyOnComplete,
+    noEnter: options.noEnter
+  });
   const request = {
     kind: 'send-text',
     slot,
     text,
     pressEnter: !options.noEnter,
+    originSlot,
+    notifyOnComplete: options.notifyOnComplete,
     client: options.client || 'bridge-send-slot'
   };
 
@@ -34,7 +43,11 @@ async function main() {
   }
 
   process.stdout.write(
-    `Sent ${response.textLength} chars to slot${response.slot} (${response.sessionId})${response.pressEnter ? ' with Enter' : ' without Enter'}${response.deliveryCheck ? ` [delivery: ${response.deliveryCheck.verdict}]` : ''}.\n`
+    `Sent ${response.textLength} chars to slot${response.slot} (${response.sessionId})${response.pressEnter ? ' with Enter' : ' without Enter'}${response.deliveryCheck ? ` [delivery: ${response.deliveryCheck.verdict}]` : ''}${
+      response.completionNotification
+        ? ` [completion notify -> slot${response.completionNotification.originSlot} id=${response.completionNotification.requestId}]`
+        : ''
+    }.\n`
   );
 }
 
@@ -43,6 +56,8 @@ function parseArgs(argv) {
     slot: undefined,
     text: undefined,
     noEnter: false,
+    originSlot: undefined,
+    notifyOnComplete: false,
     json: false,
     client: undefined,
     help: false
@@ -59,12 +74,19 @@ function parseArgs(argv) {
         options.text = argv[index + 1];
         index += 1;
         break;
+      case '--origin-slot':
+        options.originSlot = argv[index + 1];
+        index += 1;
+        break;
       case '--client':
         options.client = argv[index + 1];
         index += 1;
         break;
       case '--no-enter':
         options.noEnter = true;
+        break;
+      case '--notify-on-complete':
+        options.notifyOnComplete = true;
         break;
       case '--json':
         options.json = true;
@@ -113,6 +135,24 @@ function normalizeSlot(value) {
   }
 
   return Number(normalized);
+}
+
+function validateNotifyOptions(options) {
+  if (!options.notifyOnComplete && typeof options.originSlot !== 'undefined') {
+    throw new Error('--origin-slot requires --notify-on-complete.');
+  }
+
+  if (options.notifyOnComplete && typeof options.originSlot === 'undefined') {
+    throw new Error('--notify-on-complete requires --origin-slot.');
+  }
+
+  if (options.notifyOnComplete && options.slot === options.originSlot) {
+    throw new Error('--origin-slot must be different from --slot.');
+  }
+
+  if (options.notifyOnComplete && options.noEnter) {
+    throw new Error('--notify-on-complete requires Enter to be enabled.');
+  }
 }
 
 function readStdin() {
@@ -226,6 +266,8 @@ function printHelp() {
       '  --slot <slot>    Required. 1-4, slot1-slot4, or slot-1-slot-4',
       '  --text <text>    Optional when text is piped through stdin',
       '  --no-enter       Send text without the trailing Enter',
+      '  --notify-on-complete  Optional. Off by default, even for skills',
+      '  --origin-slot <slot>  Required only with --notify-on-complete',
       '  --json           Print the response as JSON',
       '  --client <name>  Optional client label for logs'
     ].join('\n') + '\n'

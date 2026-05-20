@@ -8,3 +8,4 @@ coverage/
 *.tmp
 docs/internal/
 docs/repository-review-*.md
+cron-jobs/

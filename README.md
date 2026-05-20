@@ -40,6 +40,7 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 - terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
 - ローカルの AI CLI / shell からも、送信先 slot をアクティブ化したうえでプレーンテキストを直接送れる
+- **Cron スケジュール**で指定した slot に自動的にコマンドやテキストを送信する（同梱の `bridge-cron-tui` で管理）
 - アプリ側の terminal では `Ctrl+C` で選択テキストをコピーし、`Ctrl+V` でクリップボードのテキストを貼り付けられる
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
@@ -208,6 +209,7 @@ npm run slot:send -- --slot slot3 --text "この差分を見て"
 - `--text` を省略した場合は **stdin** から読みます
 - `--no-enter` を付けると Enter なしで入力します
 - 通常は送信後に **数秒待って delivery check** を行い、`likely_delivered / uncertain / likely_not_delivered` のどれかを返します
+- 完了通知は **既定 OFF** で、必要なときだけ `--notify-on-complete --origin-slot slotN` を付けます
 - Electron アプリが起動していない場合は失敗します
 
 詳しい使い方と skill 設定方法は `docs\advanced-local-ai-slot-send.md` を見てください。Copilot 用の skill テンプレートは `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md` に置いてあります。
@@ -338,6 +340,34 @@ Get-Location
 - `ALLOW_USER_IDS` は必ず絞ってください
 - 必要なら `ALLOW_GUILD_ID` で guild を絞ってください
 - `.env` は Git にコミットしないでください
+
+### Cron スケジュール機能
+
+Bridge が起動している間、内蔵の Cron デーモンが **リポジトリ直下の `cron-jobs\`** を監視します。JSON ファイルを置くだけで、指定した時刻に自動的に slot へテキストを送信します。`CRON_JOBS_DIR` を設定した場合だけ、その保存先を上書きできます。
+
+ジョブの追加・編集・削除は同梱の TUI ツールで行います。
+
+```powershell
+npm run cron:tui:install   # 初回のみ
+npm run cron:tui:start
+```
+
+ジョブファイルの形式（例: `cron-jobs\morning-task.json`）:
+
+```json
+{
+  "name": "morning-task",
+  "cron": "0 9 * * *",
+  "slot": 2,
+  "text": "python analyze.py",
+  "timezone": "Asia/Tokyo",
+  "active": true
+}
+```
+
+詳細は `docs/CRON-SPEC.md` を参照してください。公開向けの概要は `docs/public-spec.md` にも追記しています。
+
+---
 
 ## 公開ドキュメント
 

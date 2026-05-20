@@ -1,4 +1,5 @@
 import { app, type BrowserWindow } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -30,6 +31,8 @@ interface LocalAutomationSendTextRequest {
   slot: TerminalSlotId;
   text: string;
   pressEnter?: boolean;
+  originSlot?: TerminalSlotId;
+  notifyOnComplete?: boolean;
   client?: string;
   checkDelivery?: boolean;
   deliveryCheckDelayMs?: number;
@@ -85,7 +88,22 @@ interface LocalAutomationSendTextResponse {
   pressEnter: boolean;
   textLength: number;
   acceptedAt: string;
+  completionNotification?: {
+    requestId: string;
+    originSlot: TerminalSlotId;
+  };
   deliveryCheck?: LocalAutomationDeliveryCheck;
+}
+
+interface PendingCompletionNotification {
+  requestId: string;
+  originSlot: TerminalSlotId;
+  targetSlot: TerminalSlotId;
+  targetSessionId: string;
+  submittedText: string;
+  beforeScreenText: string;
+  baselinePromptReadyAt?: string;
+  baselineObservedOutputEvents: number;
 }
 
 interface LocalAutomationObserveSlotTextResponse {
@@ -248,6 +266,13 @@ export class LocalAutomationServer {
     const beforeState = await this.terminalSessionManager.getSessionState(session.id);
     const beforeTranscriptOffset = this.terminalSessionManager.getRawTranscriptOffset(session.id);
     const pressEnter = request.pressEnter ?? true;
+    const completionNotification =
+      request.notifyOnComplete === true && request.originSlot
+        ? {
+            requestId: randomUUID(),
+            originSlot: request.originSlot
+          }
+        : undefined;
 
     await this.terminalAutomationService.sendInput({
       sessionId: session.id,
@@ -256,10 +281,23 @@ export class LocalAutomationServer {
       source
     });
 
+    if (completionNotification) {
+      this.scheduleCompletionNotification({
+        requestId: completionNotification.requestId,
+        originSlot: completionNotification.originSlot,
+        targetSlot: request.slot,
+        targetSessionId: session.id,
+        submittedText: request.text,
+        beforeScreenText: beforeSnapshot.screenText,
+        baselinePromptReadyAt: beforeState.lastPromptReadyAt,
+        baselineObservedOutputEvents: beforeState.observedOutputEvents
+      });
+    }
+
     this.log(
-      `accepted kind=send-text slot=${request.slot} session=${session.id} pressEnter=${pressEnter} textLength=${request.text.length} client=${JSON.stringify(
-        request.client ?? 'unknown'
-      )}`
+      `accepted kind=send-text slot=${request.slot} session=${session.id} pressEnter=${pressEnter} textLength=${request.text.length} notifyOnComplete=${
+        completionNotification ? `slot${completionNotification.originSlot}` : 'false'
+      } client=${JSON.stringify(request.client ?? 'unknown')}`
     );
 
     return {
@@ -272,6 +310,7 @@ export class LocalAutomationServer {
       pressEnter,
       textLength: request.text.length,
       acceptedAt,
+      completionNotification,
       deliveryCheck:
         request.checkDelivery === false
           ? undefined
@@ -284,6 +323,40 @@ export class LocalAutomationServer {
               beforeTranscriptOffset
             )
     };
+  }
+
+  private scheduleCompletionNotification(notification: PendingCompletionNotification): void {
+    void this.sendCompletionNotification(notification).catch((error) => {
+      this.log(
+        `completion notify failed requestId=${notification.requestId} originSlot=${notification.originSlot} targetSlot=${notification.targetSlot} error=${JSON.stringify(
+          formatError(error)
+        )}`
+      );
+    });
+  }
+
+  private async sendCompletionNotification(notification: PendingCompletionNotification): Promise<void> {
+    const completion = await this.terminalAutomationService.waitForCompletion({
+      sessionId: notification.targetSessionId,
+      expectOutput: true,
+      beforeScreenText: notification.beforeScreenText,
+      submittedText: notification.submittedText,
+      baselinePromptReadyAt: notification.baselinePromptReadyAt,
+      baselineObservedOutputEvents: notification.baselineObservedOutputEvents
+    });
+    const originSession = this.terminalSlotService.ensureSession(notification.originSlot);
+    await this.activateSessionForInput(originSession.id);
+    await this.terminalAutomationService.sendInput({
+      sessionId: originSession.id,
+      content: buildCompletionNotificationText(notification, completion),
+      appendEnter: true,
+      source: 'automation'
+    });
+    this.log(
+      `completion notify sent requestId=${notification.requestId} originSlot=${notification.originSlot} targetSlot=${notification.targetSlot} status=${
+        completion.success ? 'completed' : 'failed'
+      } reason=${completion.reason}`
+    );
   }
 
   private async handleObserveSlotText(request: LocalAutomationObserveSlotTextRequest): Promise<LocalAutomationObserveSlotTextResponse> {
@@ -515,15 +588,37 @@ function parseSendTextRequest(parsed: Record<string, unknown>): LocalAutomationS
   }
 
   ensureOptionalBoolean(parsed.pressEnter, 'pressEnter');
+  ensureOptionalBoolean(parsed.notifyOnComplete, 'notifyOnComplete');
   ensureOptionalBoolean(parsed.checkDelivery, 'checkDelivery');
+  const originSlot = parseOptionalSlot(parsed.originSlot, 'originSlot');
   ensureOptionalString(parsed.client, 'client');
   ensureOptionalNumber(parsed.deliveryCheckDelayMs, 'deliveryCheckDelayMs');
+  const pressEnter = parsed.pressEnter as boolean | undefined;
+  const notifyOnComplete = parsed.notifyOnComplete as boolean | undefined;
+
+  if (notifyOnComplete !== true && typeof originSlot !== 'undefined') {
+    throw new Error('originSlot requires notifyOnComplete=true.');
+  }
+
+  if (notifyOnComplete === true && typeof originSlot === 'undefined') {
+    throw new Error('originSlot is required when notifyOnComplete=true.');
+  }
+
+  if (notifyOnComplete === true && pressEnter === false) {
+    throw new Error('notifyOnComplete=true requires pressEnter to be enabled.');
+  }
+
+  if (typeof originSlot !== 'undefined' && originSlot === slot) {
+    throw new Error('originSlot must be different from slot.');
+  }
 
   return {
     kind: 'send-text',
     slot,
     text,
-    pressEnter: parsed.pressEnter as boolean | undefined,
+    pressEnter,
+    originSlot,
+    notifyOnComplete,
     client: parsed.client as string | undefined,
     checkDelivery: parsed.checkDelivery as boolean | undefined,
     deliveryCheckDelayMs: parsed.deliveryCheckDelayMs as number | undefined
@@ -552,6 +647,18 @@ function parseSlot(value: unknown): TerminalSlotId {
   }
 
   throw new Error('slot must be 1, 2, 3, or 4.');
+}
+
+function parseOptionalSlot(value: unknown, fieldName: string): TerminalSlotId | undefined {
+  if (typeof value === 'undefined') {
+    return undefined;
+  }
+
+  if (value === 1 || value === 2 || value === 3 || value === 4) {
+    return value;
+  }
+
+  throw new Error(`${fieldName} must be 1, 2, 3, or 4 when provided.`);
 }
 
 function ensureOptionalBoolean(value: unknown, fieldName: string): void {
@@ -607,6 +714,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function buildCompletionNotificationText(
+  notification: PendingCompletionNotification,
+  completion: { success: boolean; reason: string; completedAt: string }
+): string {
+  return [
+    '# [INTER_SLOT_TASK_COMPLETE_BEGIN]',
+    `# requestId: ${notification.requestId}`,
+    `# originSlot: slot${notification.originSlot}`,
+    `# targetSlot: slot${notification.targetSlot}`,
+    `# status: ${completion.success ? 'completed' : 'failed'}`,
+    `# completionReason: ${completion.reason}`,
+    `# completedAt: ${completion.completedAt}`,
+    '# [INTER_SLOT_TASK_COMPLETE_END]'
+  ].join('\n');
 }
 
 function wait(durationMs: number): Promise<void> {

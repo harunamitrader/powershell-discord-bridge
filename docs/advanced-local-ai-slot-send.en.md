@@ -53,8 +53,23 @@ line 2
 - `--slot`: required. `1-4` or `slot1-slot4`
 - `--text`: optional. If omitted, the CLI reads from `stdin`
 - `--no-enter`: optional. Skips the trailing Enter
+- `--notify-on-complete`: optional. **Off by default**. Enable only when the sender slot needs a completion callback
+- `--origin-slot`: optional. Required only when `--notify-on-complete` is used
 - `--json`: optional. Prints the accepted response as JSON
 - `--client`: optional. Adds a client label for logs
+
+### 4. Send a completion callback back to the sender slot
+
+Only when needed, the bridge can inject a fixed task-complete message into the sender AI's slot.
+This is **off by default even for skill-driven sends** and should be enabled only when the AI decides it truly needs the callback or when the user explicitly asks for it.
+
+```powershell
+npm run slot:send -- --slot slot3 --text "Let me know when this is done" --notify-on-complete --origin-slot slot2
+```
+
+- the completion callback is injected into `slot2` as a fixed terminal message
+- `--notify-on-complete` only works together with `--origin-slot`
+- it cannot be combined with `--no-enter`
 
 ## Additional observe commands
 
@@ -114,6 +129,13 @@ Internally, the skill calls:
 npm run slot:send -- --slot slot3 --text "Review this diff"
 ```
 
+Completion callbacks stay **off by default in the skill**.
+Only opt in when another slot AI genuinely needs the callback:
+
+```powershell
+npm run slot:send -- --slot slot3 --text "Notify me when you finish" --notify-on-complete --origin-slot slot2
+```
+
 Only when needed, it can also call:
 
 ```powershell
@@ -129,6 +151,7 @@ Use the same pattern:
 - choose exactly one slot
 - keep the text unchanged
 - add `--no-enter` only when needed
+- add `--notify-on-complete --origin-slot ...` only when a sender-slot callback is genuinely needed
 - internally call `npm run slot:send -- ...` or `node .\scripts\bridge-send-slot.cjs ...`
 
 ## Recommended usage split

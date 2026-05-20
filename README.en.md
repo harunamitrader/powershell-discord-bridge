@@ -208,6 +208,7 @@ npm run slot:send -- --slot slot3 --text "Review this diff"
 - If `--text` is omitted, the CLI reads from **stdin**
 - Add `--no-enter` to send the text without Enter
 - By default, the CLI waits a few seconds and returns a lightweight delivery verdict: `likely_delivered`, `uncertain`, or `likely_not_delivered`
+- Completion notifications are **off by default**, including skill-driven sends; add `--notify-on-complete --origin-slot slotN` only when needed
 - The command fails clearly when the Electron app is not running
 
 For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`.
@@ -338,6 +339,32 @@ Check these points:
 - Always restrict `ALLOW_USER_IDS`
 - If needed, also restrict `ALLOW_GUILD_ID`
 - Never commit `.env` to Git
+
+## Cron scheduling
+
+While the bridge is running, the built-in cron daemon watches the **repository-local `cron-jobs\` directory**. Dropping JSON files there is enough to schedule automatic text sends to a target slot. Only when `CRON_JOBS_DIR` is set does it override that default location.
+
+Use the bundled TUI to add, edit, delete, and toggle jobs:
+
+```powershell
+npm run cron:tui:install   # first time only
+npm run cron:tui:start
+```
+
+Job file shape (example: `cron-jobs\morning-task.json`):
+
+```json
+{
+  "name": "morning-task",
+  "cron": "0 9 * * *",
+  "slot": 2,
+  "text": "python analyze.py",
+  "timezone": "Asia/Tokyo",
+  "active": true
+}
+```
+
+See `docs/CRON-SPEC.md` for the full cron spec and `docs/public-spec.en.md` for the public summary.
 
 ## Public docs
 

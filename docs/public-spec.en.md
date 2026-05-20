@@ -55,6 +55,13 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - **Logs** in the top-right header opens an in-app overlay for bridge startup logs, stderr, and terminal input logs
 - When started from the desktop shortcut, a temporary startup message window is shown until the Electron window appears
 
+### 4.4 Cron-scheduled sends
+
+- While the bridge is running, the built-in cron daemon watches the **repository-local `cron-jobs\` directory**
+- Putting job definitions in `cron-jobs\*.json` schedules automatic text sends to the target slot at the configured times
+- The bundled `bridge-cron-tui` helper can manage those job files
+- Setting `CRON_JOBS_DIR` overrides the default `cron-jobs\` location
+
 ## 5. Supported inputs
 
 - Normal text message
@@ -109,6 +116,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - `!text` only accepts integers from `1-9500`, and uses that **post-compression reply length** before normal reply chunking is applied
 - Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + text + optional Enter` request shape through a local-only automation endpoint, activating the target slot in the app before sending
 - Those sends now return a lightweight **delivery likelihood check** with `likely_delivered`, `uncertain`, or `likely_not_delivered`
+- Those sends can also opt into a sender-slot task-complete callback with `notifyOnComplete`, but the default stays **off**, including skill-driven sends
 - Only when requested by the user, local automation can also fetch visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
 
 ## 6. Safety-related behavior

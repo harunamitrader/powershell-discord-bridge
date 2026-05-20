@@ -12,6 +12,7 @@ import { PreferencesStore } from './app/preferencesStore';
 import { dismissStartupSplash } from './app/startupSplashSignal';
 import { TerminalSlotService } from './app/terminalSlotService';
 import { LocalAutomationServer } from './automation/localAutomationServer';
+import { CronJobScheduler } from './cron/cronJobScheduler';
 import { registerIpc } from './ipc/registerIpc';
 import { TerminalSessionManager } from './terminal/terminalSessionManager';
 
@@ -26,6 +27,7 @@ let terminalSessionManager: TerminalSessionManager | undefined;
 let discordBridgeService: DiscordBridgeService | undefined;
 let artifactPublishService: ArtifactPublishService | undefined;
 let localAutomationServer: LocalAutomationServer | undefined;
+let cronJobScheduler: CronJobScheduler | undefined;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 async function bootstrap(): Promise<void> {
@@ -86,6 +88,9 @@ async function bootstrap(): Promise<void> {
 
   terminalSlotService.ensureSessions();
   localAutomation.start();
+  const cronScheduler = new CronJobScheduler(terminalAutomationService, terminalSlotService, appLogStore);
+  cronJobScheduler = cronScheduler;
+  cronScheduler.start();
 
   try {
     await discordBridgeService.start();
@@ -152,6 +157,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  cronJobScheduler?.stop();
   localAutomationServer?.stop();
   artifactPublishService?.stop();
   discordBridgeService?.stop();

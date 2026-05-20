@@ -53,8 +53,23 @@ line 2
 - `--slot`: 必須。`1-4` / `slot1-slot4`
 - `--text`: 任意。省略時は `stdin` から読む
 - `--no-enter`: 任意。末尾 Enter を送らない
+- `--notify-on-complete`: 任意。**既定 OFF**。必要なときだけ送信元 slot への完了通知を有効化
+- `--origin-slot`: 任意。`--notify-on-complete` を使うときだけ必須
 - `--json`: 任意。受理結果を JSON で出す
 - `--client`: 任意。ログ用ラベル
+
+### 4. 完了通知を送信元 slot に返す
+
+必要なときだけ、送信元 AI がいる slot に task complete メッセージを返せます。
+**skill 経由でも既定は OFF** で、AI が必要と判断したとき、またはユーザーが明示したときだけ有効にしてください。
+
+```powershell
+npm run slot:send -- --slot slot3 --text "処理が終わったら知らせて" --notify-on-complete --origin-slot slot2
+```
+
+- 完了通知は `slot2` の terminal に固定フォーマットのメッセージとして注入されます
+- `--notify-on-complete` は `--origin-slot` とセットでのみ使えます
+- `--no-enter` と同時には使えません
 
 ## 追加の観測コマンド
 
@@ -114,6 +129,13 @@ skill 側では内部的に次の CLI を使います。
 npm run slot:send -- --slot slot3 --text "この差分を見て"
 ```
 
+完了通知は **skill でも既定 OFF** です。
+別 slot の完了待ちが必要な場合だけ、次のように opt-in します。
+
+```powershell
+npm run slot:send -- --slot slot3 --text "完了したら知らせて" --notify-on-complete --origin-slot slot2
+```
+
 必要なときだけ、次の観測系も使います。
 
 ```powershell
@@ -129,6 +151,7 @@ skill 機構を持つ AI CLI なら、同じ考え方で構いません。
 - 対象 slot を 1 つ選ぶ
 - text をそのまま保持する
 - 必要なら `--no-enter` を付ける
+- 完了通知は必要な場合だけ `--notify-on-complete --origin-slot ...` を付ける
 - 内部では `npm run slot:send -- ...` または `node .\scripts\bridge-send-slot.cjs ...` を呼ぶ
 
 ## 推奨の使い分け
