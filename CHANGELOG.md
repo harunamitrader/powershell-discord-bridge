@@ -23,7 +23,7 @@
 - 起動完了後と `!rsa` による再起動後に、slot1 の Discord チャンネルへ bridge ready メッセージを送る動作
 - `!/command` と `!noenterTEXT` の入力モード切り替え
 - アプリ内 terminal で `Ctrl+V` によるクリップボードテキスト貼り付け
-- advanced 向けに、ローカル AI CLI / shell から `slot + text + optional Enter` を送る `slot:send` CLI と skill テンプレート
+- advanced 向けに、ローカル AI CLI / shell から `slot + from + text + optional Enter` を送る `slot:send` CLI と skill テンプレート
 - 通常の text / control リクエストが delay 以上完了しないときに、途中確認用の terminal スクリーンショットを 1 回返す動作（既定 ON / delay 設定可）
 - Discord 返信形式の `code block` / `plain text` 切り替え
 - hard timeout の unlimited 設定
@@ -42,6 +42,8 @@
 - ローカル UI の pane / settings 表記を `P1` 形式から `slot1` 形式へ変更
 - ローカル AI / shell、skill、cron の slot 対応範囲を `slot1-slot6` に拡張
 - `slot:send` の `--from` を必須化し、skill では本文冒頭の短い名乗りと sender slot 確認ルールを使うよう変更
+- 起動メッセージウィンドウは signal 削除に加えて Electron のメインウィンドウ表示でも自動終了するよう変更
+- アプリウィンドウの最小サイズを `1240x680` に調整
 - 返信抽出を、再描画後に取得した before/after `screenText` ベースへ変更
 - 通常返信・`!text` 返信・fallback 返信で、連続改行も 5 回までに圧縮するよう変更
 - ローカル AI / shell からの `slot:send` / local automation 送信でも、対象 slot をアクティブ化してから入力するよう変更
