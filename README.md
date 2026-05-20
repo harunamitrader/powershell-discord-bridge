@@ -31,7 +31,7 @@ Discord に送ったメッセージを PowerShell に渡し、返ってきた結
 ## できること
 
 - Discord の 1 チャンネルを 1 つの PowerShell セッションにひも付ける
-- 起動時に 4 つの固定 PowerShell 枠を自動で立ち上げる
+- 起動時に 6 つの固定 PowerShell slot を自動で立ち上げる（slot5 / slot6 は右側の半幅列）
 - Discord に送った文章を、そのまま PowerShell 側へ入力する
 - 実行結果の差分を Discord に返信する
 - `!screenshot` / `!ss` で **対象 terminal のスクリーンショット**を Discord に返す（busy 中も即時取得、再描画誘発なし）
@@ -176,7 +176,7 @@ npm run setup:shortcuts
 ## 6. 使い方
 
 1. アプリを起動する
-2. アプリ起動時に、**4つ固定の PowerShell 枠** が自動で作成される
+2. アプリ起動時に、**6つ固定の PowerShell slot** が自動で作成される
 3. 各枠は保存済みの設定を使って、同じ Discord チャンネルに再接続される
 4. 各枠の channel ID が空なら、指定 guild に Discord チャンネルが自動作成される
 5. 起動時に、共通の artifact チャンネル `terminal-artifacts` も自動作成または再利用される
@@ -191,7 +191,7 @@ npm run setup:shortcuts
 
 通常の **text / control** を Discord から送るときは、アプリウィンドウが**非アクティブまたは最小化**されている場合、best-effort で**復元・前面化してから** terminal 入力を送ります。`!help` や screenshot 系、設定変更系コマンドでは前面化しません。
 
-各枠は固定で、増減はできません。  
+各 slot は固定で、増減はできません。  
 ワークスペース名を変更した場合は、対応する Discord チャンネル名も同じ名前に追従して変更されます。  
 各枠の PowerShell は **Restart** で再起動できます。
 
@@ -199,14 +199,16 @@ npm run setup:shortcuts
 
 これは **advanced 向けのローカル自動化機能** です。通常運用は引き続き **Discord から各 slot に送る使い方** を前提にしてください。
 
-実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot4 に plain text を送る**最小操作を使えます。送信時は、対象 slot を先にアプリ側でアクティブ化します。
+実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot6 に text を送る**最小操作を使えます。送信時は、対象 slot を先にアプリ側でアクティブ化し、本文の先頭には自動で `[from: ...]` ヘッダーが付きます。
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "この差分を見て"
+npm run slot:send -- --slot slot3 --from human --text "この差分を見て"
 ```
 
-- `--slot` は `1-4` / `slot1-slot4`
+- `--slot` は `1-6` / `slot1-slot6`
+- `--from` は必須で、`slot1-slot6` / `human` / `cron` / `external:<label>` を受け付けます
 - `--text` を省略した場合は **stdin** から読みます
+- 送信時は `[from: ...]` ヘッダーが自動で先頭に付与されます
 - `--no-enter` を付けると Enter なしで入力します
 - 通常は送信後に **数秒待って delivery check** を行い、`likely_delivered / uncertain / likely_not_delivered` のどれかを返します
 - 完了通知は **既定 OFF** で、必要なときだけ `--notify-on-complete --origin-slot slotN` を付けます
@@ -218,7 +220,7 @@ npm run slot:send -- --slot slot3 --text "この差分を見て"
 @'
 multi-line prompt
 line 2
-'@ | node .\scripts\bridge-send-slot.cjs --slot slot4
+'@ | node .\scripts\bridge-send-slot.cjs --slot slot4 --from human
 ```
 
 ### よく使うコマンド
@@ -274,14 +276,14 @@ line 2
 screen diff の中間アンカー長は、既定値を **500 文字から 300 文字へ変更**し、`preferences.json` の `bridgeSettings.diffAnchorChars` と Settings から調整できるようにしています。短くすると差分開始位置を後ろへ寄せやすくなる一方で、似た文字列が多い画面では誤アンカーの可能性も少し上がります。
 
 設定は Electron アプリ右上の **Settings** から開きます。  
-設定は **Global** と **Per terminal** に分かれています。
+設定は **Global** と **Per slot** に分かれています。
 
 - **Global:** 自動スクリーンショット送信 ON/OFF、Discord reply format、soft timeout / hard timeout、bridge 用の固定 cols / rows（rows の最小値は `15`）
 - **Global:** Delayed inflight terminal screenshot（既定値 `ON`）と inflight screenshot delay（既定値 `10s`、`preferences.json` の `bridgeSettings.inflightScreenshotOnRunningRequest` / `bridgeSettings.timing.inflightScreenshotDelaySeconds`）
 - **Global:** Artifact publish folder（初期値は terminal 1 の cwd 直下の `discord-publish`、送信先チャンネルは自動作成される `terminal-artifacts`）
 - **Global:** screen diff anchor chars（既定値 `300`、`preferences.json` の `bridgeSettings.diffAnchorChars` に保存）
 - **Global:** bridge timing（ms 単位の redraw/input/Enter/repeat key 待機）に加えて、completion 判定、manual redraw、live view publish、screenshot capture、app restart、attachment download の待機・timeout も変更でき、設定は `%APPDATA%\PowerShell Discord Bridge\preferences.json` の `bridgeSettings.timing` に保存されます
-- **Per terminal:** ワークスペース名、Discord channel ID、その枠の default working directory
+- **Per slot:** ワークスペース名、Discord channel ID、その slot の default working directory
 
 初期値は次のとおりです。
 

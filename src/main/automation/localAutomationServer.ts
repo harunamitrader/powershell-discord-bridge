@@ -14,6 +14,7 @@ import { AppLogStore } from '../app/appLogStore';
 import { ensureMainWindowReadyForTerminalInput } from '../app/ensureMainWindowReadyForTerminalInput';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSlotService } from '../app/terminalSlotService';
+import { formatInterSlotMessage, normalizeInterSlotFromLabel } from './interSlotMessage';
 import { TerminalAutomationService } from '../bridge/terminalAutomationService';
 import { buildTerminalScreenshotFilename, captureTerminalScreenshotPng } from '../bridge/terminalScreenshotCapture';
 import { buildWindowScreenshotFilename, captureWindowScreenshotPng } from '../bridge/windowScreenshotCapture';
@@ -29,6 +30,7 @@ const SESSION_ACTIVATION_SETTLE_MS = 75;
 interface LocalAutomationSendTextRequest {
   kind: 'send-text';
   slot: TerminalSlotId;
+  from: string;
   text: string;
   pressEnter?: boolean;
   originSlot?: TerminalSlotId;
@@ -82,11 +84,13 @@ interface LocalAutomationSendTextResponse {
   ok: true;
   kind: 'send-text';
   slot: TerminalSlotId;
+  from: string;
   sessionId: string;
   title?: string;
   cwd?: string;
   pressEnter: boolean;
   textLength: number;
+  deliveredTextLength: number;
   acceptedAt: string;
   completionNotification?: {
     requestId: string;
@@ -261,6 +265,7 @@ export class LocalAutomationServer {
     const session = this.terminalSlotService.ensureSession(request.slot);
     const source: TerminalWriteSource = 'automation';
     const acceptedAt = new Date().toISOString();
+    const deliveredText = formatInterSlotMessage(request.from, request.text);
     await this.activateSessionForInput(session.id);
     const beforeSnapshot = await this.terminalSessionManager.getBufferSnapshot(session.id, 'manual');
     const beforeState = await this.terminalSessionManager.getSessionState(session.id);
@@ -276,7 +281,7 @@ export class LocalAutomationServer {
 
     await this.terminalAutomationService.sendInput({
       sessionId: session.id,
-      content: request.text,
+      content: deliveredText,
       appendEnter: pressEnter,
       source
     });
@@ -287,7 +292,7 @@ export class LocalAutomationServer {
         originSlot: completionNotification.originSlot,
         targetSlot: request.slot,
         targetSessionId: session.id,
-        submittedText: request.text,
+        submittedText: deliveredText,
         beforeScreenText: beforeSnapshot.screenText,
         baselinePromptReadyAt: beforeState.lastPromptReadyAt,
         baselineObservedOutputEvents: beforeState.observedOutputEvents
@@ -295,7 +300,9 @@ export class LocalAutomationServer {
     }
 
     this.log(
-      `accepted kind=send-text slot=${request.slot} session=${session.id} pressEnter=${pressEnter} textLength=${request.text.length} notifyOnComplete=${
+      `accepted kind=send-text slot=${request.slot} from=${JSON.stringify(request.from)} session=${session.id} pressEnter=${pressEnter} textLength=${
+        request.text.length
+      } deliveredTextLength=${deliveredText.length} notifyOnComplete=${
         completionNotification ? `slot${completionNotification.originSlot}` : 'false'
       } client=${JSON.stringify(request.client ?? 'unknown')}`
     );
@@ -304,22 +311,24 @@ export class LocalAutomationServer {
       ok: true,
       kind: 'send-text',
       slot: request.slot,
+      from: request.from,
       sessionId: session.id,
       title: session.title,
       cwd: session.cwd,
       pressEnter,
       textLength: request.text.length,
+      deliveredTextLength: deliveredText.length,
       acceptedAt,
       completionNotification,
       deliveryCheck:
         request.checkDelivery === false
-          ? undefined
-          : await this.performDeliveryCheck(
-              session.id,
-              request.text,
-              sanitizePositiveInteger(request.deliveryCheckDelayMs, DEFAULT_DELIVERY_CHECK_DELAY_MS),
-              beforeSnapshot,
-              beforeState,
+            ? undefined
+            : await this.performDeliveryCheck(
+                session.id,
+                deliveredText,
+                sanitizePositiveInteger(request.deliveryCheckDelayMs, DEFAULT_DELIVERY_CHECK_DELAY_MS),
+                beforeSnapshot,
+                beforeState,
               beforeTranscriptOffset
             )
     };
@@ -582,6 +591,7 @@ function parseRequest(payload: string): LocalAutomationRequest {
 
 function parseSendTextRequest(parsed: Record<string, unknown>): LocalAutomationSendTextRequest {
   const slot = parseSlot(parsed.slot);
+  const from = parseFromLabel(parsed.from);
   const text = typeof parsed.text === 'string' ? parsed.text : '';
   if (text.length === 0) {
     throw new Error('Text is required.');
@@ -615,6 +625,7 @@ function parseSendTextRequest(parsed: Record<string, unknown>): LocalAutomationS
   return {
     kind: 'send-text',
     slot,
+    from,
     text,
     pressEnter,
     originSlot,
@@ -642,11 +653,11 @@ function parseObserveSlotScreenshotRequest(parsed: Record<string, unknown>): Loc
 }
 
 function parseSlot(value: unknown): TerminalSlotId {
-  if (value === 1 || value === 2 || value === 3 || value === 4) {
+  if (value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6) {
     return value;
   }
 
-  throw new Error('slot must be 1, 2, 3, or 4.');
+  throw new Error('slot must be 1, 2, 3, 4, 5, or 6.');
 }
 
 function parseOptionalSlot(value: unknown, fieldName: string): TerminalSlotId | undefined {
@@ -654,11 +665,19 @@ function parseOptionalSlot(value: unknown, fieldName: string): TerminalSlotId | 
     return undefined;
   }
 
-  if (value === 1 || value === 2 || value === 3 || value === 4) {
+  if (value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6) {
     return value;
   }
 
-  throw new Error(`${fieldName} must be 1, 2, 3, or 4 when provided.`);
+  throw new Error(`${fieldName} must be 1, 2, 3, 4, 5, or 6 when provided.`);
+}
+
+function parseFromLabel(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new Error('from is required.');
+  }
+
+  return normalizeInterSlotFromLabel(value);
 }
 
 function ensureOptionalBoolean(value: unknown, fieldName: string): void {

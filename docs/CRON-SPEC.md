@@ -58,8 +58,8 @@ cron-jobs\{name}.json
 |-----------|-----|------|------|
 | `name` | string | ✓ | ジョブ識別名。ファイル名（拡張子なし）と一致させる |
 | `cron` | string | ✓ | 5 フィールド cron 式（分 時 日 月 曜） |
-| `slot` | 1\|2\|3\|4 | ✓ | 送信先ターミナルスロット番号 |
-| `text` | string | ✓ | スロットに送信するテキスト |
+| `slot` | 1\|2\|3\|4\|5\|6 | ✓ | 送信先ターミナルスロット番号 |
+| `text` | string | ✓ | スロットに送信する本文テキスト（実行時に `[from: cron]` ヘッダーを自動付与） |
 | `timezone` | string | — | タイムゾーン（デフォルト: `Asia/Tokyo`） |
 | `active` | boolean | — | `false` でジョブ停止（デフォルト: `true`） |
 
@@ -103,7 +103,7 @@ export class CronJobScheduler {
 2. `chokidar` で `CRON_JOBS_DIR/*.json` を監視
 3. ファイル追加・変更 → `registerJob()`: JSON を読んでタスク再登録
 4. ファイル削除 → `unregisterJob()`: タスク停止・削除
-5. cron 発火時 → `terminalSlotService.ensureSession(slot)` → `terminalAutomationService.sendInput()`
+5. cron 発火時 → `terminalSlotService.ensureSession(slot)` → `[from: cron]` ヘッダー付きに整形 → `terminalAutomationService.sendInput()`
 6. エラー時はコンソールログを出力してスキップ（クラッシュしない）
 
 ### index.ts への組み込み
@@ -206,7 +206,7 @@ powershell-discord-bridge/
 ┌─ ジョブ追加 ────────────────────────────────────────┐
 │ name:     [morning-task              ]               │
 │ cron:     [0 9 * * *                 ] ✓ 毎日09:00  │
-│ slot:     [2] (1/2/3/4)                              │
+│ slot:     [2] (1/2/3/4/5/6)                          │
 │ text:     [python analyze.py         ]               │
 │ timezone: [Asia/Tokyo                ]               │
 │ active:   [✓]                                        │
@@ -217,7 +217,7 @@ powershell-discord-bridge/
 
 - `cron` フィールドは入力中にリアルタイムバリデーション
 - 有効な cron 式の場合は次回実行時刻を横に表示
-- `slot` は 1〜4 のみ受け付ける
+- `slot` は 1〜6 のみ受け付ける
 
 ### 依存パッケージ（TUI）
 
@@ -254,5 +254,5 @@ powershell-discord-bridge/
 ## 制約
 
 - cron 式は 5 フィールド（秒指定なし）のみサポート
-- `text` にキー操作（`!enter` 等）は含めない。テキストのみ送信
+- `text` にキー操作（`!enter` 等）は含めない。テキストのみ送信し、実行時には `[from: cron]` ヘッダーが自動付与される
 - `active: false` のジョブはデーモン起動時・ファイル変更時に無視される

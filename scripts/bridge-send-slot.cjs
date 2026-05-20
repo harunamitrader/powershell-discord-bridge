@@ -14,6 +14,7 @@ async function main() {
 
   const text = await resolveText(options);
   const slot = normalizeSlot(options.slot);
+  const from = normalizeFromLabel(options.from);
   const originSlot = typeof options.originSlot === 'string' ? normalizeSlot(options.originSlot) : undefined;
   validateNotifyOptions({
     slot,
@@ -24,6 +25,7 @@ async function main() {
   const request = {
     kind: 'send-text',
     slot,
+    from,
     text,
     pressEnter: !options.noEnter,
     originSlot,
@@ -43,7 +45,9 @@ async function main() {
   }
 
   process.stdout.write(
-    `Sent ${response.textLength} chars to slot${response.slot} (${response.sessionId})${response.pressEnter ? ' with Enter' : ' without Enter'}${response.deliveryCheck ? ` [delivery: ${response.deliveryCheck.verdict}]` : ''}${
+    `Sent ${response.textLength} chars to slot${response.slot} from ${response.from} (${response.sessionId})${
+      response.pressEnter ? ' with Enter' : ' without Enter'
+    }${response.deliveryCheck ? ` [delivery: ${response.deliveryCheck.verdict}]` : ''}${
       response.completionNotification
         ? ` [completion notify -> slot${response.completionNotification.originSlot} id=${response.completionNotification.requestId}]`
         : ''
@@ -54,6 +58,7 @@ async function main() {
 function parseArgs(argv) {
   const options = {
     slot: undefined,
+    from: undefined,
     text: undefined,
     noEnter: false,
     originSlot: undefined,
@@ -72,6 +77,10 @@ function parseArgs(argv) {
         break;
       case '--text':
         options.text = argv[index + 1];
+        index += 1;
+        break;
+      case '--from':
+        options.from = argv[index + 1];
         index += 1;
         break;
       case '--origin-slot':
@@ -124,14 +133,27 @@ async function resolveText(options) {
   return stdinText;
 }
 
+function normalizeFromLabel(value) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error('From label is required. Use --from slot3, --from human, or --from external:claude-desktop.');
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (/^slot[1-6]$/.test(normalized) || normalized === 'human' || normalized === 'cron' || /^external:[a-z0-9._-]+$/.test(normalized)) {
+    return normalized;
+  }
+
+  throw new Error('From label must be slot1-slot6, human, cron, or external:<label>.');
+}
+
 function normalizeSlot(value) {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error('Slot is required. Use --slot 1 or --slot slot1.');
   }
 
   const normalized = value.trim().toLowerCase().replace(/^slot-?/, '');
-  if (!['1', '2', '3', '4'].includes(normalized)) {
-    throw new Error('Slot must be 1-4 or slot1-slot4.');
+  if (!['1', '2', '3', '4', '5', '6'].includes(normalized)) {
+    throw new Error('Slot must be 1-6 or slot1-slot6.');
   }
 
   return Number(normalized);
@@ -259,11 +281,12 @@ function printHelp() {
   process.stdout.write(
     [
       'Usage:',
-      '  node scripts\\bridge-send-slot.cjs --slot slot3 --text "Hello"',
-      '  Get-Content .\\prompt.txt | node scripts\\bridge-send-slot.cjs --slot slot3',
+      '  node scripts\\bridge-send-slot.cjs --slot slot3 --from human --text "Hello"',
+      '  Get-Content .\\prompt.txt | node scripts\\bridge-send-slot.cjs --slot slot3 --from slot2',
       '',
       'Options:',
-      '  --slot <slot>    Required. 1-4, slot1-slot4, or slot-1-slot-4',
+      '  --slot <slot>    Required. 1-6, slot1-slot6, or slot-1-slot-6',
+      '  --from <label>   Required. slot1-slot6, human, cron, or external:<label>',
       '  --text <text>    Optional when text is piped through stdin',
       '  --no-enter       Send text without the trailing Enter',
       '  --notify-on-complete  Optional. Off by default, even for skills',

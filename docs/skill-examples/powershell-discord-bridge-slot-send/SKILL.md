@@ -1,11 +1,11 @@
 ---
 name: powershell-discord-bridge-slot-send
-description: Send plain text to slot1-slot4 of the running PowerShell Discord Bridge Electron app by calling the local slot-send CLI.
+description: Send plain text to slot1-slot6 of the running PowerShell Discord Bridge Electron app by calling the local slot-send CLI.
 ---
 
 # PowerShell Discord Bridge Slot Send
 
-Use this skill when the user wants plain text sent into **slot1-slot4** of the running `powershell-discord-bridge` app.
+Use this skill when the user wants plain text sent into **slot1-slot6** of the running `powershell-discord-bridge` app.
 
 ## Scope
 
@@ -21,13 +21,13 @@ Use this skill when the user wants plain text sent into **slot1-slot4** of the r
 ## Primary command
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "Review this diff"
+npm run slot:send -- --slot slot3 --from slot2 --text "This is Copilot in slot2. Review this diff."
 ```
 
 Equivalent direct form:
 
 ```powershell
-node .\scripts\bridge-send-slot.cjs --slot slot3 --text "Review this diff"
+node .\scripts\bridge-send-slot.cjs --slot slot3 --from slot2 --text "This is Copilot in slot2. Review this diff."
 ```
 
 ## Multi-line text
@@ -36,13 +36,13 @@ node .\scripts\bridge-send-slot.cjs --slot slot3 --text "Review this diff"
 @'
 line 1
 line 2
-'@ | node .\scripts\bridge-send-slot.cjs --slot slot3
+'@ | node .\scripts\bridge-send-slot.cjs --slot slot3 --from slot2
 ```
 
 ## No-Enter send
 
 ```powershell
-node .\scripts\bridge-send-slot.cjs --slot slot3 --text "draft only" --no-enter
+node .\scripts\bridge-send-slot.cjs --slot slot3 --from human --text "draft only" --no-enter
 ```
 
 ## Optional completion callback
@@ -56,7 +56,7 @@ Only add `--notify-on-complete --origin-slot slotN` when:
 Example:
 
 ```powershell
-node .\scripts\bridge-send-slot.cjs --slot slot3 --text "Notify slot2 when done" --notify-on-complete --origin-slot slot2
+node .\scripts\bridge-send-slot.cjs --slot slot3 --from slot2 --text "This is Copilot in slot2. Notify slot2 when done." --notify-on-complete --origin-slot slot2
 ```
 
 ## Optional inspection commands
@@ -84,8 +84,9 @@ For checking other slots, call `slot:observe -- --slot ... --text` per slot and 
 ## Rules
 
 1. Always send to exactly one slot per command.
-2. Keep the user's text unchanged unless explicitly asked to transform it.
-3. If the CLI says the Electron app is not running, report that plainly.
-4. Do not inspect any slot unless the user separately asks.
-5. When inspection is requested, prefer visible text first and screenshots only on request.
-6. Do NOT enable completion callbacks by default. Use them only when clearly needed.
+2. Always pass `--from` with one of: `slot1-slot6`, `human`, `cron`, or `external:<label>`.
+3. For AI-authored inter-slot requests, begin the body with a short self-introduction such as `This is Copilot in slot2.` when you know your own sender label.
+4. If you do not know your own sender slot, ask the user first. Only if that would block the task may you inspect visible text from `slot1-slot6` to identify yourself.
+5. If the CLI says the Electron app is not running, report that plainly.
+6. Do not inspect screenshots unless the user explicitly asks; when inspection is needed for sender identification, prefer visible text first.
+7. Do NOT enable completion callbacks by default. Use them only when clearly needed.

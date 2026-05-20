@@ -5,10 +5,12 @@
 
 ## 何ができるか
 
-実行中の Electron アプリに対して、**ローカルの AI CLI / shell から `slot + text + optional Enter` だけを送る**最小操作を使えます。
+実行中の Electron アプリに対して、**ローカルの AI CLI / shell から `slot + from + text + optional Enter` を送る**最小操作を使えます。
 
-- slot は `slot1-slot4`
+- slot は `slot1-slot6`
+- from は `slot1-slot6` / `human` / `cron` / `external:<label>`
 - text は plain text のまま送る
+- 送信時に `[from: ...]` ヘッダーを自動で先頭へ付ける
 - 必要なら Enter なしにもできる
 - 送信前に対象 slot をアプリ側でアクティブ化する
 - slot 内で何の AI / tool が動いているかは前提にしない
@@ -27,7 +29,7 @@
 ### 1. 1 行テキストを送る
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "この差分を見て"
+npm run slot:send -- --slot slot3 --from human --text "この差分を見て"
 ```
 
 このコマンドは通常、送信後に少し待って **delivery likelihood check** を行います。
@@ -36,7 +38,7 @@ npm run slot:send -- --slot slot3 --text "この差分を見て"
 ### 2. Enter なしで送る
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "draft only" --no-enter
+npm run slot:send -- --slot slot3 --from human --text "draft only" --no-enter
 ```
 
 ### 3. 複数行テキストを送る
@@ -45,12 +47,13 @@ npm run slot:send -- --slot slot3 --text "draft only" --no-enter
 @'
 line 1
 line 2
-'@ | node .\scripts\bridge-send-slot.cjs --slot slot4
+'@ | node .\scripts\bridge-send-slot.cjs --slot slot4 --from human
 ```
 
 ## CLI の仕様
 
-- `--slot`: 必須。`1-4` / `slot1-slot4`
+- `--slot`: 必須。`1-6` / `slot1-slot6`
+- `--from`: 必須。`slot1-slot6` / `human` / `cron` / `external:<label>`
 - `--text`: 任意。省略時は `stdin` から読む
 - `--no-enter`: 任意。末尾 Enter を送らない
 - `--notify-on-complete`: 任意。**既定 OFF**。必要なときだけ送信元 slot への完了通知を有効化
@@ -64,7 +67,7 @@ line 2
 **skill 経由でも既定は OFF** で、AI が必要と判断したとき、またはユーザーが明示したときだけ有効にしてください。
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "処理が終わったら知らせて" --notify-on-complete --origin-slot slot2
+npm run slot:send -- --slot slot3 --from slot2 --text "slot2のCopilotです。処理が終わったら知らせて" --notify-on-complete --origin-slot slot2
 ```
 
 - 完了通知は `slot2` の terminal に固定フォーマットのメッセージとして注入されます
@@ -126,15 +129,20 @@ docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md
 skill 側では内部的に次の CLI を使います。
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "この差分を見て"
+npm run slot:send -- --slot slot3 --from slot2 --text "slot2のCopilotです。この差分を見て"
 ```
 
 完了通知は **skill でも既定 OFF** です。
 別 slot の完了待ちが必要な場合だけ、次のように opt-in します。
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "完了したら知らせて" --notify-on-complete --origin-slot slot2
+npm run slot:send -- --slot slot3 --from slot2 --text "slot2のCopilotです。完了したら知らせて" --notify-on-complete --origin-slot slot2
 ```
+
+- skill で他 slot に依頼を送るときは、CLI が付ける `[from: ...]` ヘッダーに加えて、本文の先頭でも `slot2のCopilotです。` のように短く名乗ります
+- 自分の所属 slot が分からない場合は、まず人間に確認します
+- 人間確認なしで進めてよい場合のみ、`slot1-slot6` の visible text を読んで自分の slot を特定してから送ります
+- 自分の所属 slot を特定できないまま `--from slotN` を推測で付けて送ってはいけません
 
 必要なときだけ、次の観測系も使います。
 
@@ -149,7 +157,9 @@ npm run slot:observe -- --window-screenshot
 skill 機構を持つ AI CLI なら、同じ考え方で構いません。
 
 - 対象 slot を 1 つ選ぶ
+- `--from` に送信者ラベルを明示する
 - text をそのまま保持する
+- AI が他 slot に依頼する場合は、本文の先頭で短く名乗る
 - 必要なら `--no-enter` を付ける
 - 完了通知は必要な場合だけ `--notify-on-complete --origin-slot ...` を付ける
 - 内部では `npm run slot:send -- ...` または `node .\scripts\bridge-send-slot.cjs ...` を呼ぶ

@@ -31,7 +31,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 ## What it can do
 
 - Bind one Discord channel to one PowerShell session
-- Automatically start four fixed PowerShell slots at launch
+- Automatically start six fixed PowerShell slots at launch, with slot5 and slot6 in a half-width right column
 - Send Discord text directly into PowerShell
 - Reply to Discord with the detected output diff
 - Return a **terminal screenshot** with `!screenshot` / `!ss` even while busy, without forcing a redraw
@@ -39,7 +39,7 @@ It sends messages from Discord to PowerShell, then sends the result back to Disc
 - Return the tail of the **currently visible terminal text** with `!text N` / `!textN`
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
-- Also send plain text directly to slot1-slot4 from a local AI CLI or shell, activating the target slot first
+- Also send plain text directly to slot1-slot6 from a local AI CLI or shell, activating the target slot first
 - In the app terminal, use `Ctrl+C` to copy the current selection and `Ctrl+V` to paste clipboard text into the session
 - Let you watch the same live session from the app UI
 
@@ -175,7 +175,7 @@ The shortcut uses `assets\app-icon.ico` and starts the app through the hidden la
 ## 6. How to use it
 
 1. Start the app
-2. The app automatically creates **four fixed PowerShell slots**
+2. The app automatically creates **six fixed PowerShell slots**
 3. Each slot reconnects to its saved Discord channel
 4. If a slot has no channel ID yet, the app auto-creates a Discord channel in the configured guild
 5. At startup, the shared artifact channel `terminal-artifacts` is also auto-created or reused
@@ -198,14 +198,16 @@ Each PowerShell slot can be restarted with **Restart**.
 
 This is an **advanced local automation feature**. The normal workflow should still be **sending messages from Discord to each slot**.
 
-The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send plain text to **slot1-slot4** without going through Discord. Those sends activate the target slot in the app first.
+The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send text to **slot1-slot6** without going through Discord. Those sends activate the target slot in the app first and automatically prepend a `[from: ...]` header to the delivered text.
 
 ```powershell
-npm run slot:send -- --slot slot3 --text "Review this diff"
+npm run slot:send -- --slot slot3 --from human --text "Review this diff"
 ```
 
-- `--slot` accepts `1-4` or `slot1-slot4`
+- `--slot` accepts `1-6` or `slot1-slot6`
+- `--from` is required and accepts `slot1-slot6`, `human`, `cron`, or `external:<label>`
 - If `--text` is omitted, the CLI reads from **stdin**
+- A `[from: ...]` header is prepended automatically on send
 - Add `--no-enter` to send the text without Enter
 - By default, the CLI waits a few seconds and returns a lightweight delivery verdict: `likely_delivered`, `uncertain`, or `likely_not_delivered`
 - Completion notifications are **off by default**, including skill-driven sends; add `--notify-on-complete --origin-slot slotN` only when needed
@@ -217,7 +219,7 @@ For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`
 @'
 multi-line prompt
 line 2
-'@ | node .\scripts\bridge-send-slot.cjs --slot slot4
+'@ | node .\scripts\bridge-send-slot.cjs --slot slot4 --from human
 ```
 
 ### Common commands
@@ -273,14 +275,14 @@ The `discord-publish` watcher is **recursive**. It uploads on both new files and
 The middle anchor length for screen diffs now defaults to **300 characters instead of 500**, and can be adjusted from Settings or `preferences.json` through `bridgeSettings.diffAnchorChars`. Shorter anchors make it easier to move the diff start point later, but they also slightly increase the risk of false matches on repetitive screens.
 
 Open Settings from the top right of the Electron app.  
-Settings are split into **Global** and **Per terminal** sections.
+Settings are split into **Global** and **Per slot** sections.
 
 - **Global:** auto screenshot on/off, Discord reply format, soft timeout / hard timeout, fixed bridge cols / rows (minimum rows is `15`)
 - **Global:** Delayed inflight terminal screenshot (default `ON`) and inflight screenshot delay (default `10s`, saved as `bridgeSettings.inflightScreenshotOnRunningRequest` / `bridgeSettings.timing.inflightScreenshotDelaySeconds`)
 - **Global:** Artifact publish folder (default is `discord-publish` under terminal 1's cwd, destination channel is the auto-created `terminal-artifacts`)
 - **Global:** screen diff anchor chars (default `300`, saved as `bridgeSettings.diffAnchorChars` in `preferences.json`)
 - **Global:** bridge timing for redraw/input/Enter/repeat-key waits, plus completion detection, manual redraw, live view publish, screenshot capture, app restart, and attachment download waits/timeouts saved under `bridgeSettings.timing` in `%APPDATA%\PowerShell Discord Bridge\preferences.json`
-- **Per terminal:** workspace name, Discord channel ID, and that slot's default working directory
+- **Per slot:** workspace name, Discord channel ID, and that slot's default working directory
 
 Default values are:
 

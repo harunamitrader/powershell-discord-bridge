@@ -26,8 +26,8 @@ This project is designed not as a **public remote-management bot**, but as a **b
 
 ### 4.1 Channels and sessions
 
-- The app window shows **four fixed PowerShell sessions in a 2x2 layout**
-- Each pane is treated as a fixed slot
+- The app window shows **six fixed PowerShell sessions**
+- Each pane is a fixed slot, arranged in two rows as `slot1 / slot2 / slot5` and `slot3 / slot4 / slot6`
 - The runtime model is **1 Discord channel = 1 slot = 1 PowerShell session**
 - Messages sent to the same channel go to the same slot session
 - If additional text or control input arrives while a reply is still being generated, that input is injected directly into the running session instead of being queued
@@ -114,7 +114,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - If a normal text or control request is still unfinished after the configured delay, the bridge sends one interim terminal screenshot as an additional progress reply together with a delay label such as `[inflight screenshot after 10s while running: terminal]`
 - In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters, repeated horizontal whitespace runs longer than 5 characters, and repeated line breaks longer than 5 are compressed down to 5
 - `!text` only accepts integers from `1-9500`, and uses that **post-compression reply length** before normal reply chunking is applied
-- Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + text + optional Enter` request shape through a local-only automation endpoint, activating the target slot in the app before sending
+- Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + from + text + optional Enter` request shape through a local-only automation endpoint, activating the target slot in the app before sending and automatically prepending a `[from: ...]` header
 - Those sends now return a lightweight **delivery likelihood check** with `likely_delivered`, `uncertain`, or `likely_not_delivered`
 - Those sends can also opt into a sender-slot task-complete callback with `notifyOnComplete`, but the default stays **off**, including skill-driven sends
 - Only when requested by the user, local automation can also fetch visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
@@ -124,7 +124,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
 - `ALLOW_GUILD_ID` can optionally restrict operation to a single guild
-- The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3`. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`
+- The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --from human --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3 --from human`. `--from` is required and the delivered text automatically gets a `[from: ...]` header. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`
 - Delayed inflight screenshots are enabled by default and can be changed in seconds through `preferences.json` with `bridgeSettings.inflightScreenshotOnRunningRequest` and `bridgeSettings.timing.inflightScreenshotDelaySeconds`
 - If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
 - Each slot stores its Discord channel ID and reconnects to the same channel after restart
@@ -176,13 +176,13 @@ ALLOW_GUILD_ID=...
 - Older keys such as `DISCORD_ALLOWED_USER_ID` and `DISCORD_ALLOWED_GUILD_IDS` are still accepted for compatibility
 - See `README.en.md` for full setup instructions
 
-## 11. Fixed four-slot layout
+## 11. Fixed six-slot layout
 
-- There is no left sidebar; the main app uses a 2x2 four-pane layout
+- There is no left sidebar; the main app uses a fixed 3-column by 2-row six-slot layout
 - Each pane title bar shows the slot status and a Restart action
 - Settings opens from the top-right header as a separate overlay
 - Logs opens from the top-right header in the same overlay style as Settings
-- The settings UI separates Global settings from Per terminal settings
+- The settings UI separates Global settings from Per slot settings
 - The default Global settings are `auto screenshot ON`, `code block` replies, `soft timeout 300s`, `hard timeout unlimited`, `100x50` bridge size, plus the default wait values for bridge timing / completion / screenshot / download
 - The default delayed inflight screenshot setting is `ON`, with a `10000ms` delay
 - The default artifact publish settings are `discord-publish` under terminal 1's working directory and the shared channel `terminal-artifacts`

@@ -1,4 +1,5 @@
-import type { BridgeReplyFormat, BridgeSettings, BridgeSettingsUpdate } from '../../shared/terminal';
+import type { BridgeReplyFormat, BridgeSettings, BridgeSettingsUpdate, TerminalSlotId, TerminalSlotSettings } from '../../shared/terminal';
+import { TERMINAL_SLOT_IDS } from '../../shared/terminal';
 import { app, Rectangle } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -55,7 +56,7 @@ interface StoredPreferences {
 }
 
 interface StoredTerminalSlot {
-  slotId: 1 | 2 | 3 | 4;
+  slotId: TerminalSlotId;
   workspaceName?: string;
   channelId?: string;
   cwd?: string;
@@ -115,7 +116,7 @@ const MIN_HARD_TIMEOUT_MS = 5000;
 const MAX_HARD_TIMEOUT_MS = 7200000;
 export const MIN_DIFF_ANCHOR_CHARS = 50;
 export const MAX_DIFF_ANCHOR_CHARS = 5000;
-const SLOT_IDS = [1, 2, 3, 4] as const;
+const SLOT_IDS = TERMINAL_SLOT_IDS;
 
 export class PreferencesStore {
   private readonly filePath: string;
@@ -141,7 +142,7 @@ export class PreferencesStore {
     this.save();
   }
 
-  getTerminalSlots(): { slotId: 1 | 2 | 3 | 4; workspaceName: string; channelId: string; cwd: string }[] {
+  getTerminalSlots(): TerminalSlotSettings[] {
     const defaultCwd = this.getDefaultWorkspaceCwd();
     const storedById = new Map((this.state.terminalSlots ?? []).map((slot) => [slot.slotId, slot]));
     return SLOT_IDS.map((slotId) => {
@@ -156,9 +157,9 @@ export class PreferencesStore {
   }
 
   updateTerminalSlot(
-    slotId: 1 | 2 | 3 | 4,
+    slotId: TerminalSlotId,
     update: { workspaceName?: string; channelId?: string; cwd?: string }
-  ): { slotId: 1 | 2 | 3 | 4; workspaceName: string; channelId: string; cwd: string } {
+  ): TerminalSlotSettings {
     const slots = this.getTerminalSlots();
     const index = slots.findIndex((slot) => slot.slotId === slotId);
     if (index === -1) {
@@ -531,7 +532,7 @@ function normalizeDiscordChannelId(value: string | undefined): string {
   return value?.trim() ?? DEFAULT_BRIDGE_SETTINGS.artifactPublish.channelId;
 }
 
-function normalizeWorkspaceName(value: string | undefined, slotId: 1 | 2 | 3 | 4): string {
+function normalizeWorkspaceName(value: string | undefined, slotId: TerminalSlotId): string {
   const normalized = value?.trim();
-  return normalized && normalized.length > 0 ? normalized : `terminal-${slotId}`;
+  return normalized && normalized.length > 0 ? normalized : `slot${slotId}`;
 }

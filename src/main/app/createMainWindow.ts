@@ -5,7 +5,7 @@ import { PreferencesStore } from './preferencesStore';
 import { dismissStartupSplash } from './startupSplashSignal';
 
 const DEFAULT_WINDOW = {
-  width: 1480,
+  width: 1860,
   height: 920
 };
 
@@ -18,8 +18,8 @@ export function createMainWindow(preferencesStore: PreferencesStore): BrowserWin
     x: bounds?.x,
     y: bounds?.y,
     show: false,
-    minWidth: 1100,
-    minHeight: 720,
+    minWidth: 1240,
+    minHeight: 680,
     autoHideMenuBar: true,
     backgroundColor: '#181818',
     icon: resolveAppIconPath(),

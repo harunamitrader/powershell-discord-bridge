@@ -9,6 +9,14 @@ if (-not (Test-Path -LiteralPath $SignalPath)) {
   exit 0
 }
 
+function Test-BridgeMainWindowVisible {
+  $bridgeWindow = Get-Process -Name electron -ErrorAction SilentlyContinue |
+    Where-Object { $_.MainWindowTitle -eq 'PowerShell Discord Bridge' } |
+    Select-Object -First 1
+
+  return $null -ne $bridgeWindow
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
@@ -51,7 +59,7 @@ $form.Controls.Add($progressBar)
 $pollTimer = New-Object System.Windows.Forms.Timer
 $pollTimer.Interval = 200
 $pollTimer.Add_Tick({
-  if (-not (Test-Path -LiteralPath $SignalPath)) {
+  if ((-not (Test-Path -LiteralPath $SignalPath)) -or (Test-BridgeMainWindowVisible)) {
     $pollTimer.Stop()
     $form.Close()
   }

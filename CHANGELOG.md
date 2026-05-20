@@ -6,6 +6,8 @@
 
 ### Added
 
+- 6固定 slot を 1 ウィンドウ内で表示し、右側に slot5 / slot6 用の半幅列を追加
+- `slot:send` / cron 送信に、`[from: ...]` ヘッダー付きの送信元ラベルを付ける仕組み
 - `!rst` / `!rsa` / `!ss` / `!wss` の省略コマンド
 - `!hardtimeout`, `!hardtimeoutunlimited`, `!hardtimeoutoff` コマンド
 - `!cols`, `!rows` で bridge dimensions を確認・変更するコマンド
@@ -37,6 +39,9 @@
 
 ### Changed
 
+- ローカル UI の pane / settings 表記を `P1` 形式から `slot1` 形式へ変更
+- ローカル AI / shell、skill、cron の slot 対応範囲を `slot1-slot6` に拡張
+- `slot:send` の `--from` を必須化し、skill では本文冒頭の短い名乗りと sender slot 確認ルールを使うよう変更
 - 返信抽出を、再描画後に取得した before/after `screenText` ベースへ変更
 - 通常返信・`!text` 返信・fallback 返信で、連続改行も 5 回までに圧縮するよう変更
 - ローカル AI / shell からの `slot:send` / local automation 送信でも、対象 slot をアクティブ化してから入力するよう変更

@@ -95,6 +95,7 @@ const MAX_INFLIGHT_SCREENSHOT_DELAY_SECONDS = MAX_TIMING_DELAY_MS / 1000;
 const MIN_DIFF_ANCHOR_CHARS = 50;
 const MAX_DIFF_ANCHOR_CHARS = 5000;
 const MAX_RENDERED_APP_LOGS = 2000;
+const SLOT_LAYOUT_ORDER: TerminalSlotId[] = [1, 2, 5, 3, 4, 6];
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<BootstrapState | null>(null);
@@ -250,7 +251,7 @@ export function App() {
   }, [activeSessionId, sessions]);
 
   const slots = useMemo(
-    () => [...slotSettings].sort((left, right) => left.slotId - right.slotId),
+    () => orderSlotsForLayout(slotSettings),
     [slotSettings]
   );
 
@@ -651,7 +652,7 @@ export function App() {
               >
                 <div className="terminal-tile__header">
                   <div className="terminal-tile__header-main">
-                    <span className="terminal-tile__slot-label">P{slot.slotId}</span>
+                    <span className="terminal-tile__slot-label">slot{slot.slotId}</span>
                     {session && renaming ? (
                       <div className="rename-editor">
                         <input
@@ -714,7 +715,7 @@ export function App() {
                   ) : (
                     <div className="terminal-tile__placeholder">
                       <div className="terminal-tile__placeholder-title">PowerShell unavailable</div>
-                      <div className="terminal-tile__placeholder-body">Restart でこの枠の PowerShell を再作成できます。</div>
+                      <div className="terminal-tile__placeholder-body">Restart でこの slot の PowerShell を再作成できます。</div>
                     </div>
                   )}
                 </div>
@@ -753,7 +754,7 @@ export function App() {
             <header className="settings-screen__header">
               <div>
                 <div className="settings-screen__title">Settings</div>
-                <div className="settings-screen__subtitle">Global settings and per-terminal settings</div>
+                <div className="settings-screen__subtitle">Global settings and per-slot settings</div>
               </div>
               <button className="action-button" onClick={closeSettings} disabled={isSavingSettings}>
                 Close
@@ -1626,17 +1627,14 @@ export function App() {
               </section>
 
               <section className="settings-section">
-                <h2 className="settings-section__title">Per terminal</h2>
+                <h2 className="settings-section__title">Per slot</h2>
                 <div className="slot-settings-list">
-                  {slotDrafts
-                    .slice()
-                    .sort((left, right) => left.slotId - right.slotId)
-                    .map((slot) => (
+                  {orderSlotsForLayout(slotDrafts).map((slot) => (
                       <div key={slot.slotId} className="slot-settings-card">
-                        <div className="slot-settings-card__title">P{slot.slotId}</div>
+                        <div className="slot-settings-card__title">slot{slot.slotId}</div>
                         <div className="settings-form">
                           <label className="settings-field">
-                            <span className="settings-field__label">Workspace name</span>
+                            <span className="settings-field__label">Workspace</span>
                             <input
                               className="settings-field__input"
                               value={slot.workspaceName}
@@ -1644,7 +1642,7 @@ export function App() {
                             />
                           </label>
                           <label className="settings-field">
-                            <span className="settings-field__label">Discord channel ID</span>
+                            <span className="settings-field__label">Channel ID</span>
                             <input
                               className="settings-field__input"
                               value={slot.channelId}
@@ -1652,7 +1650,7 @@ export function App() {
                             />
                           </label>
                           <label className="settings-field">
-                            <span className="settings-field__label">Default working directory</span>
+                            <span className="settings-field__label">Default cwd</span>
                             <input
                               className="settings-field__input"
                               value={slot.cwd}
@@ -1856,6 +1854,15 @@ function appendAppLogEntry(current: AppLogEntry[], entry: AppLogEntry): AppLogEn
   return [...current, entry];
 }
 
+function orderSlotsForLayout(slots: TerminalSlotSettings[]): TerminalSlotSettings[] {
+  const orderMap = new Map(SLOT_LAYOUT_ORDER.map((slotId, index) => [slotId, index]));
+  return [...slots].sort((left, right) => {
+    const leftOrder = orderMap.get(left.slotId) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = orderMap.get(right.slotId) ?? Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder || left.slotId - right.slotId;
+  });
+}
+
 function updateSlotDraft(
   setSlotDrafts: Dispatch<SetStateAction<TerminalSlotSettings[]>>,
   slotId: TerminalSlotId,
@@ -1866,8 +1873,8 @@ function updateSlotDraft(
 
 function findSlotName(slots: TerminalSlotSettings[], slotId: TerminalSlotId | undefined): string {
   if (!slotId) {
-    return 'terminal';
+    return 'slot';
   }
 
-  return slots.find((slot) => slot.slotId === slotId)?.workspaceName ?? `terminal-${slotId}`;
+  return slots.find((slot) => slot.slotId === slotId)?.workspaceName ?? `slot${slotId}`;
 }

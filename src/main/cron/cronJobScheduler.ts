@@ -5,6 +5,7 @@ import { app } from 'electron';
 import * as nodeCron from 'node-cron';
 import type { AppLogStore } from '../app/appLogStore';
 import type { TerminalSlotService } from '../app/terminalSlotService';
+import { formatInterSlotMessage } from '../automation/interSlotMessage';
 import type { TerminalAutomationService } from '../bridge/terminalAutomationService';
 import type { TerminalSlotId } from '../../shared/terminal';
 
@@ -14,7 +15,7 @@ const DEFAULT_TIMEZONE = 'Asia/Tokyo';
 interface CronJobConfig {
   name: string;
   cron: string;
-  slot: 1 | 2 | 3 | 4;
+  slot: TerminalSlotId;
   text: string;
   timezone?: string;
   active?: boolean;
@@ -135,13 +136,14 @@ export class CronJobScheduler {
     this.log(`executing name=${job.name} slot=${job.slot}`);
     try {
       const session = this.terminalSlotService.ensureSession(job.slot);
+      const deliveredText = formatInterSlotMessage('cron', job.text);
       await this.terminalAutomationService.sendInput({
         sessionId: session.id,
-        content: job.text,
+        content: deliveredText,
         appendEnter: true,
         source: 'automation'
       });
-      this.log(`done name=${job.name} slot=${job.slot}`);
+      this.log(`done name=${job.name} slot=${job.slot} deliveredTextLength=${deliveredText.length}`);
     } catch (error) {
       this.log(`failed name=${job.name} slot=${job.slot} error=${formatError(error)}`);
     }
@@ -176,7 +178,7 @@ function parseCronJobConfig(
   }
 
   if (!isTerminalSlotId(slot)) {
-    return { ok: false, error: 'slot must be 1, 2, 3, or 4' };
+    return { ok: false, error: 'slot must be 1, 2, 3, 4, 5, or 6' };
   }
 
   if (typeof text !== 'string' || text.length === 0) {
@@ -209,7 +211,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isTerminalSlotId(value: unknown): value is TerminalSlotId {
-  return value === 1 || value === 2 || value === 3 || value === 4;
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6;
 }
 
 function isFiveFieldCron(value: string): boolean {

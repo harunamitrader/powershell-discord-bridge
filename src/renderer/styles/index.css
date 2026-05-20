@@ -103,7 +103,7 @@ button {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr);
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 10px;
@@ -203,7 +203,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
+  min-width: 42px;
   height: 20px;
   padding: 0 7px;
   border-radius: 999px;
@@ -654,21 +654,42 @@ button {
 
 .slot-settings-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
 }
 
 .slot-settings-card {
-  padding: 14px;
+  padding: 10px;
   border: 1px solid #303030;
   border-radius: 10px;
   background: #202020;
+  min-width: 0;
 }
 
 .slot-settings-card__title {
   color: #f0f0f0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+}
+
+.slot-settings-card .settings-form {
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.slot-settings-card .settings-field {
+  gap: 4px;
+}
+
+.slot-settings-card .settings-field__label {
+  font-size: 10px;
+}
+
+.slot-settings-card .settings-field__input {
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .settings-screen__actions {
