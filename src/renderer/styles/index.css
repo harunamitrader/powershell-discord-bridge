@@ -103,10 +103,69 @@ button {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr);
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 0;
   padding: 10px;
+  background: #181818;
+}
+
+body.workspace-resize-active {
+  user-select: none;
+}
+
+body.workspace-resize-active-col,
+body.workspace-resize-active-col * {
+  cursor: col-resize !important;
+}
+
+body.workspace-resize-active-row,
+body.workspace-resize-active-row * {
+  cursor: row-resize !important;
+}
+
+.terminal-grid__divider {
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+}
+
+.terminal-grid__divider::before {
+  content: '';
+  position: absolute;
+  border-radius: 999px;
+  background: #2f2f2f;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.terminal-grid__divider:hover::before,
+.terminal-grid__divider--active::before {
+  background: #5f8ed0;
+  box-shadow: 0 0 0 1px rgb(108 182 255 / 30%);
+}
+
+.terminal-grid__divider--vertical {
+  cursor: col-resize;
+}
+
+.terminal-grid__divider--vertical::before {
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+}
+
+.terminal-grid__divider--horizontal {
+  cursor: row-resize;
+}
+
+.terminal-grid__divider--horizontal::before {
+  top: 50%;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  transform: translateY(-50%);
 }
 
 .app-log-panel {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react';
 import type {
   AppLogEntry,
   BridgeReplyFormat,
@@ -6,7 +6,8 @@ import type {
   BridgeSettings,
   TerminalSessionSummary,
   TerminalSlotId,
-  TerminalSlotSettings
+  TerminalSlotSettings,
+  WorkspacePaneLayout
 } from '../../shared/terminal';
 import { TerminalViewport } from '../components/TerminalViewport';
 
@@ -96,6 +97,24 @@ const MIN_DIFF_ANCHOR_CHARS = 50;
 const MAX_DIFF_ANCHOR_CHARS = 5000;
 const MAX_RENDERED_APP_LOGS = 2000;
 const SLOT_LAYOUT_ORDER: TerminalSlotId[] = [1, 2, 5, 3, 4, 6];
+const WORKSPACE_DIVIDER_SIZE_PX = 10;
+const WORKSPACE_PADDING_PX = 10;
+const MIN_WORKSPACE_COLUMN_SIZE_PX = 220;
+const MIN_WORKSPACE_ROW_SIZE_PX = 160;
+const DEFAULT_WORKSPACE_PANE_LAYOUT: WorkspacePaneLayout = {
+  columnFractions: [0.4, 0.4, 0.2],
+  rowFractions: [0.5, 0.5]
+};
+const WORKSPACE_GRID_POSITIONS = [
+  { gridColumn: '1', gridRow: '1' },
+  { gridColumn: '3', gridRow: '1' },
+  { gridColumn: '5', gridRow: '1' },
+  { gridColumn: '1', gridRow: '3' },
+  { gridColumn: '3', gridRow: '3' },
+  { gridColumn: '5', gridRow: '3' }
+] as const;
+
+type WorkspaceDivider = 'vertical-left' | 'vertical-right' | 'horizontal';
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<BootstrapState | null>(null);
@@ -187,9 +206,15 @@ export function App() {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [workspacePaneLayout, setWorkspacePaneLayout] = useState<WorkspacePaneLayout>(DEFAULT_WORKSPACE_PANE_LAYOUT);
+  const [activeDivider, setActiveDivider] = useState<WorkspaceDivider | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const snapshotPublishTimerRef = useRef<number | null>(null);
   const appLogViewportRef = useRef<HTMLDivElement | null>(null);
+  const workspaceGridRef = useRef<HTMLElement | null>(null);
+  const workspacePaneLayoutRef = useRef<WorkspacePaneLayout>(DEFAULT_WORKSPACE_PANE_LAYOUT);
+  const persistedWorkspacePaneLayoutRef = useRef<WorkspacePaneLayout>(DEFAULT_WORKSPACE_PANE_LAYOUT);
+  const workspaceLayoutSaveTokenRef = useRef(0);
 
   useEffect(() => {
     const unsubscribeUpdated = window.terminalApp.onSessionUpdated((session) => {
@@ -220,6 +245,8 @@ export function App() {
       setSlotSettings(state.terminalSlots);
       setAppLogs(state.appLogs);
       setBridgeSettings(state.bridgeSettings);
+      setWorkspacePaneLayout(state.workspacePaneLayout);
+      persistedWorkspacePaneLayoutRef.current = state.workspacePaneLayout;
       setSettingsDraft(createSettingsDraft(state.bridgeSettings));
       setSlotDrafts(state.terminalSlots);
       setActiveSessionId(state.sessions[0]?.id ?? null);
@@ -250,6 +277,50 @@ export function App() {
     scheduleViewSnapshotPublish();
   }, [activeSessionId, sessions]);
 
+  useEffect(() => {
+    workspacePaneLayoutRef.current = workspacePaneLayout;
+  }, [workspacePaneLayout]);
+
+  useEffect(() => {
+    if (!activeDivider) {
+      return;
+    }
+
+    const resizeCursorClass = activeDivider === 'horizontal' ? 'workspace-resize-active-row' : 'workspace-resize-active-col';
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const nextLayout = calculateWorkspacePaneLayout(
+        activeDivider,
+        workspacePaneLayoutRef.current,
+        workspaceGridRef.current,
+        event.clientX,
+        event.clientY
+      );
+      if (!areWorkspacePaneLayoutsEqual(nextLayout, workspacePaneLayoutRef.current)) {
+        setWorkspacePaneLayout(nextLayout);
+      }
+    };
+
+    const finishDrag = () => {
+      const finalLayout = workspacePaneLayoutRef.current;
+      setActiveDivider(null);
+      if (!areWorkspacePaneLayoutsEqual(finalLayout, persistedWorkspacePaneLayoutRef.current)) {
+        void persistWorkspacePaneLayout(finalLayout);
+      }
+    };
+
+    document.body.classList.add('workspace-resize-active', resizeCursorClass);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', finishDrag);
+    window.addEventListener('pointercancel', finishDrag);
+    return () => {
+      document.body.classList.remove('workspace-resize-active', 'workspace-resize-active-col', 'workspace-resize-active-row');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', finishDrag);
+    };
+  }, [activeDivider]);
+
   const slots = useMemo(
     () => orderSlotsForLayout(slotSettings),
     [slotSettings]
@@ -265,6 +336,7 @@ export function App() {
     return map;
   }, [sessions]);
   const appLogText = useMemo(() => appLogs.map((entry) => entry.text).join(''), [appLogs]);
+  const workspaceGridStyle = useMemo(() => createWorkspaceGridStyle(workspacePaneLayout), [workspacePaneLayout]);
 
   function scheduleViewSnapshotPublish() {
     if (snapshotPublishTimerRef.current !== null) {
@@ -277,6 +349,29 @@ export function App() {
         activeSessionId: activeSessionIdRef.current
       });
     }, bridgeSettings.timing.liveViewSnapshotDebounceMs);
+  }
+
+  async function persistWorkspacePaneLayout(layout: WorkspacePaneLayout) {
+    const saveToken = ++workspaceLayoutSaveTokenRef.current;
+    try {
+      const persistedLayout = await window.terminalApp.updateWorkspacePaneLayout(layout);
+      if (saveToken !== workspaceLayoutSaveTokenRef.current) {
+        return;
+      }
+
+      persistedWorkspacePaneLayoutRef.current = persistedLayout;
+      setWorkspacePaneLayout(persistedLayout);
+      setBootstrapState((current) => (current ? { ...current, workspacePaneLayout: persistedLayout } : current));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFeedback(`ペインサイズの保存に失敗しました: ${message}`);
+    }
+  }
+
+  function handleWorkspaceDividerPointerDown(divider: WorkspaceDivider, event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveDivider(divider);
   }
 
   function openSettings() {
@@ -635,8 +730,8 @@ export function App() {
           </div>
         </header>
 
-        <main className="terminal-grid">
-          {slots.map((slot) => {
+        <main ref={workspaceGridRef} className="terminal-grid" style={workspaceGridStyle}>
+          {slots.map((slot, index) => {
             const session = sessionsBySlot.get(slot.slotId) ?? null;
             const renaming = session && renamingSessionId === session.id;
             const status = getPaneStatus(session);
@@ -644,6 +739,7 @@ export function App() {
               <section
                 key={slot.slotId}
                 className={activeSessionId === session?.id ? 'terminal-tile terminal-tile--active' : 'terminal-tile'}
+                style={WORKSPACE_GRID_POSITIONS[index]}
                 onMouseDown={() => {
                   if (session) {
                     setActiveSessionId(session.id);
@@ -722,6 +818,30 @@ export function App() {
               </section>
             );
           })}
+          <div
+            className={activeDivider === 'vertical-left' ? 'terminal-grid__divider terminal-grid__divider--vertical terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--vertical'}
+            style={{ gridColumn: '2', gridRow: '1 / 4' }}
+            role="separator"
+            aria-label="Resize left and center columns"
+            aria-orientation="vertical"
+            onPointerDown={(event) => handleWorkspaceDividerPointerDown('vertical-left', event)}
+          />
+          <div
+            className={activeDivider === 'vertical-right' ? 'terminal-grid__divider terminal-grid__divider--vertical terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--vertical'}
+            style={{ gridColumn: '4', gridRow: '1 / 4' }}
+            role="separator"
+            aria-label="Resize center and right columns"
+            aria-orientation="vertical"
+            onPointerDown={(event) => handleWorkspaceDividerPointerDown('vertical-right', event)}
+          />
+          <div
+            className={activeDivider === 'horizontal' ? 'terminal-grid__divider terminal-grid__divider--horizontal terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--horizontal'}
+            style={{ gridColumn: '1 / 6', gridRow: '2' }}
+            role="separator"
+            aria-label="Resize top and bottom rows"
+            aria-orientation="horizontal"
+            onPointerDown={(event) => handleWorkspaceDividerPointerDown('horizontal', event)}
+          />
         </main>
       </div>
 
@@ -1877,4 +1997,96 @@ function findSlotName(slots: TerminalSlotSettings[], slotId: TerminalSlotId | un
   }
 
   return slots.find((slot) => slot.slotId === slotId)?.workspaceName ?? `slot${slotId}`;
+}
+
+function createWorkspaceGridStyle(layout: WorkspacePaneLayout) {
+  return {
+    gridTemplateColumns: [
+      `minmax(0, ${layout.columnFractions[0]}fr)`,
+      `${WORKSPACE_DIVIDER_SIZE_PX}px`,
+      `minmax(0, ${layout.columnFractions[1]}fr)`,
+      `${WORKSPACE_DIVIDER_SIZE_PX}px`,
+      `minmax(0, ${layout.columnFractions[2]}fr)`
+    ].join(' '),
+    gridTemplateRows: [`minmax(0, ${layout.rowFractions[0]}fr)`, `${WORKSPACE_DIVIDER_SIZE_PX}px`, `minmax(0, ${layout.rowFractions[1]}fr)`].join(' ')
+  };
+}
+
+function calculateWorkspacePaneLayout(
+  divider: WorkspaceDivider,
+  layout: WorkspacePaneLayout,
+  container: HTMLElement | null,
+  clientX: number,
+  clientY: number
+): WorkspacePaneLayout {
+  if (!container) {
+    return layout;
+  }
+
+  const rect = container.getBoundingClientRect();
+  const innerWidth = rect.width - WORKSPACE_PADDING_PX * 2;
+  const innerHeight = rect.height - WORKSPACE_PADDING_PX * 2;
+  const usableWidth = innerWidth - WORKSPACE_DIVIDER_SIZE_PX * 2;
+  const usableHeight = innerHeight - WORKSPACE_DIVIDER_SIZE_PX;
+  if (usableWidth <= 0 || usableHeight <= 0) {
+    return layout;
+  }
+
+  const columnWidths = fractionsToPixels(layout.columnFractions, usableWidth);
+  const rowHeights = fractionsToPixels(layout.rowFractions, usableHeight);
+  const relativeX = clampNumber(clientX - rect.left - WORKSPACE_PADDING_PX, 0, innerWidth);
+  const relativeY = clampNumber(clientY - rect.top - WORKSPACE_PADDING_PX, 0, innerHeight);
+
+  if (divider === 'vertical-left') {
+    const leftBoundary = clampNumber(relativeX - WORKSPACE_DIVIDER_SIZE_PX / 2, 0, usableWidth);
+    const maxLeftWidth = columnWidths[0] + columnWidths[1] - MIN_WORKSPACE_COLUMN_SIZE_PX;
+    const nextLeftWidth = clampNumber(leftBoundary, MIN_WORKSPACE_COLUMN_SIZE_PX, maxLeftWidth);
+    return {
+      columnFractions: normalizePixels([nextLeftWidth, columnWidths[0] + columnWidths[1] - nextLeftWidth, columnWidths[2]]) as [number, number, number],
+      rowFractions: layout.rowFractions
+    };
+  }
+
+  if (divider === 'vertical-right') {
+    const rightBoundary = clampNumber(relativeX - WORKSPACE_DIVIDER_SIZE_PX * 1.5, 0, usableWidth);
+    const minBoundary = columnWidths[0] + MIN_WORKSPACE_COLUMN_SIZE_PX;
+    const maxBoundary = usableWidth - MIN_WORKSPACE_COLUMN_SIZE_PX;
+    const nextBoundary = clampNumber(rightBoundary, minBoundary, maxBoundary);
+    return {
+      columnFractions: normalizePixels([columnWidths[0], nextBoundary - columnWidths[0], usableWidth - nextBoundary]) as [number, number, number],
+      rowFractions: layout.rowFractions
+    };
+  }
+
+  const topBoundary = clampNumber(relativeY - WORKSPACE_DIVIDER_SIZE_PX / 2, 0, usableHeight);
+  const nextTopHeight = clampNumber(topBoundary, MIN_WORKSPACE_ROW_SIZE_PX, usableHeight - MIN_WORKSPACE_ROW_SIZE_PX);
+  return {
+    columnFractions: layout.columnFractions,
+    rowFractions: normalizePixels([nextTopHeight, usableHeight - nextTopHeight]) as [number, number]
+  };
+}
+
+function fractionsToPixels(fractions: readonly number[], total: number): number[] {
+  return fractions.map((fraction) => fraction * total);
+}
+
+function normalizePixels(pixels: number[]): number[] {
+  const total = pixels.reduce((sum, value) => sum + value, 0);
+  if (!Number.isFinite(total) || total <= 0) {
+    return pixels.map(() => 1 / pixels.length);
+  }
+
+  return pixels.map((value) => value / total);
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function areWorkspacePaneLayoutsEqual(left: WorkspacePaneLayout, right: WorkspacePaneLayout): boolean {
+  return areFractionVectorsEqual(left.columnFractions, right.columnFractions) && areFractionVectorsEqual(left.rowFractions, right.rowFractions);
+}
+
+function areFractionVectorsEqual(left: readonly number[], right: readonly number[]): boolean {
+  return left.length === right.length && left.every((value, index) => Math.abs(value - right[index]) < 0.0001);
 }

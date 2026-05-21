@@ -4,6 +4,7 @@ import type {
   BridgeSettings,
   BridgeSettingsUpdate,
   BootstrapState,
+  WorkspacePaneLayout,
   TerminalAutomationTurnRequest,
   TerminalAutomationTurnResult,
   TerminalApi,
@@ -119,6 +120,9 @@ const api: TerminalApi = {
   },
   async updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings> {
     return ipcRenderer.invoke('terminal:update-bridge-settings', update);
+  },
+  async updateWorkspacePaneLayout(layout: WorkspacePaneLayout): Promise<WorkspacePaneLayout> {
+    return ipcRenderer.invoke('terminal:update-workspace-pane-layout', layout);
   },
   async publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void> {
     await ipcRenderer.invoke('terminal:publish-live-view-snapshot', request);

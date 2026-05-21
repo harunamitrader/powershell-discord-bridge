@@ -36,6 +36,7 @@
 - デスクトップショートカット向けの単一 PowerShell launcher
 - デスクトップショートカット起動中に出す一時的な起動メッセージウィンドウ
 - Cron ジョブ管理用の `bridge-cron-tui` を repo 同梱サブディレクトリとして追加
+- 6 slot ワークスペースに、内部 terminal サイズは変えず表示ペイン比率だけを変える draggable divider
 
 ### Changed
 

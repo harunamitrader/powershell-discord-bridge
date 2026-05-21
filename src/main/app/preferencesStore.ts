@@ -1,4 +1,4 @@
-import type { BridgeReplyFormat, BridgeSettings, BridgeSettingsUpdate, TerminalSlotId, TerminalSlotSettings } from '../../shared/terminal';
+import type { BridgeReplyFormat, BridgeSettings, BridgeSettingsUpdate, TerminalSlotId, TerminalSlotSettings, WorkspacePaneLayout } from '../../shared/terminal';
 import { TERMINAL_SLOT_IDS } from '../../shared/terminal';
 import { app, Rectangle } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -35,6 +35,10 @@ interface StoredBridgeTimingSettings {
 interface StoredPreferences {
   lastCwd?: string;
   windowBounds?: StoredWindowBounds;
+  workspacePaneLayout?: {
+    columnFractions?: number[];
+    rowFractions?: number[];
+  };
   terminalSlots?: StoredTerminalSlot[];
   bridgeSettings?: {
     autoScreenshotOnReply?: boolean;
@@ -117,6 +121,10 @@ const MAX_HARD_TIMEOUT_MS = 7200000;
 export const MIN_DIFF_ANCHOR_CHARS = 50;
 export const MAX_DIFF_ANCHOR_CHARS = 5000;
 const SLOT_IDS = TERMINAL_SLOT_IDS;
+const DEFAULT_WORKSPACE_PANE_LAYOUT: WorkspacePaneLayout = {
+  columnFractions: [0.4, 0.4, 0.2],
+  rowFractions: [0.5, 0.5]
+};
 
 export class PreferencesStore {
   private readonly filePath: string;
@@ -127,6 +135,7 @@ export class PreferencesStore {
     this.state = this.load();
     this.removeLegacyDefaultWorkspaceCwd();
     this.ensureTerminalSlotsPersisted();
+    this.ensureWorkspacePaneLayoutPersisted();
   }
 
   getLastCwd(): string | undefined {
@@ -193,6 +202,16 @@ export class PreferencesStore {
       height: bounds.height
     };
     this.save();
+  }
+
+  getWorkspacePaneLayout(): WorkspacePaneLayout {
+    return normalizeWorkspacePaneLayout(this.state.workspacePaneLayout);
+  }
+
+  setWorkspacePaneLayout(layout: WorkspacePaneLayout): WorkspacePaneLayout {
+    this.state.workspacePaneLayout = normalizeWorkspacePaneLayout(layout);
+    this.save();
+    return this.getWorkspacePaneLayout();
   }
 
   getBridgeSettings(): BridgeSettings {
@@ -475,6 +494,18 @@ export class PreferencesStore {
     this.save();
   }
 
+  private ensureWorkspacePaneLayoutPersisted(): void {
+    const normalizedLayout = this.getWorkspacePaneLayout();
+    const currentSerialized = JSON.stringify(this.state.workspacePaneLayout ?? {});
+    const normalizedSerialized = JSON.stringify(normalizedLayout);
+    if (currentSerialized === normalizedSerialized) {
+      return;
+    }
+
+    this.state.workspacePaneLayout = normalizedLayout;
+    this.save();
+  }
+
   private removeLegacyDefaultWorkspaceCwd(): void {
     if (!('defaultWorkspaceCwd' in this.state)) {
       return;
@@ -517,6 +548,35 @@ function clampNullableInteger(value: number | null | undefined, min: number, max
   }
 
   return clampInteger(value, min, max, fallback);
+}
+
+function normalizeWorkspacePaneLayout(
+  layout: StoredPreferences['workspacePaneLayout'] | WorkspacePaneLayout | undefined
+): WorkspacePaneLayout {
+  const columnFractions = normalizeFractionVector(layout?.columnFractions, DEFAULT_WORKSPACE_PANE_LAYOUT.columnFractions);
+  const rowFractions = normalizeFractionVector(layout?.rowFractions, DEFAULT_WORKSPACE_PANE_LAYOUT.rowFractions);
+  return {
+    columnFractions: [columnFractions[0], columnFractions[1], columnFractions[2]],
+    rowFractions: [rowFractions[0], rowFractions[1]]
+  };
+}
+
+function normalizeFractionVector(values: number[] | undefined, fallback: readonly number[]): number[] {
+  if (!values || values.length !== fallback.length) {
+    return [...fallback];
+  }
+
+  const normalized = values.map((value) => Number(value));
+  if (normalized.some((value) => !Number.isFinite(value) || value <= 0)) {
+    return [...fallback];
+  }
+
+  const total = normalized.reduce((sum, value) => sum + value, 0);
+  if (!Number.isFinite(total) || total <= 0) {
+    return [...fallback];
+  }
+
+  return normalized.map((value) => value / total);
 }
 
 function normalizeBridgeReplyFormat(value: BridgeReplyFormat | undefined): BridgeReplyFormat {

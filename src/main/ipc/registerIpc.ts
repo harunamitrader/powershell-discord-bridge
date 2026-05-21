@@ -25,7 +25,8 @@ import type {
   TerminalWriteRequest,
   TerminalSlotId,
   TerminalSlotSettingsUpdate,
-  TerminalSlotSettingsUpdateResult
+  TerminalSlotSettingsUpdateResult,
+  WorkspacePaneLayout
 } from '../../shared/terminal';
 import { LocalAutomationServer } from '../automation/localAutomationServer';
 import { TerminalAutomationService } from '../bridge/terminalAutomationService';
@@ -111,6 +112,7 @@ export function registerIpc(options: RegisterIpcOptions): void {
     shellLabel: terminalSessionManager.getShellLabel(),
     bridgeDimensions: terminalSessionManager.getBridgeDimensions(),
     bridgeSettings: preferencesStore.getBridgeSettings(),
+    workspacePaneLayout: preferencesStore.getWorkspacePaneLayout(),
     terminalSlots: terminalSlotService.listSlots(),
     sessions: terminalSessionManager.listSessions(),
     appLogs: appLogStore.listEntries()
@@ -183,6 +185,10 @@ export function registerIpc(options: RegisterIpcOptions): void {
     terminalSessionManager.applyBridgeSettings();
     artifactPublishService.refreshFromSettings();
     return settings;
+  });
+
+  ipcMain.handle('terminal:update-workspace-pane-layout', async (_event, layout: WorkspacePaneLayout): Promise<WorkspacePaneLayout> => {
+    return preferencesStore.setWorkspacePaneLayout(layout);
   });
 
   ipcMain.handle('terminal:publish-live-view-snapshot', async (_event, request: TerminalViewSnapshotPublishRequest) => {

@@ -94,6 +94,11 @@ export interface TerminalSlotSettingsUpdateResult {
   session?: TerminalSessionSummary;
 }
 
+export interface WorkspacePaneLayout {
+  columnFractions: [number, number, number];
+  rowFractions: [number, number];
+}
+
 export interface AppLogEntry {
   id: number;
   timestamp: string;
@@ -106,6 +111,7 @@ export interface BootstrapState {
   shellLabel: string;
   bridgeDimensions: TerminalDimensions;
   bridgeSettings: BridgeSettings;
+  workspacePaneLayout: WorkspacePaneLayout;
   terminalSlots: TerminalSlotSettings[];
   sessions: TerminalSessionSummary[];
   appLogs: AppLogEntry[];
@@ -360,6 +366,7 @@ export interface TerminalApi {
   onSessionActivated(listener: (event: TerminalSessionActivatedEvent) => void): () => void;
   onAppLogEntry(listener: (entry: AppLogEntry) => void): () => void;
   updateBridgeSettings(update: BridgeSettingsUpdate): Promise<BridgeSettings>;
+  updateWorkspacePaneLayout(layout: WorkspacePaneLayout): Promise<WorkspacePaneLayout>;
   publishLiveViewSnapshot(request: TerminalViewSnapshotPublishRequest): Promise<void>;
   getTerminalScreenshotExport(sessionId: string): Promise<TerminalScreenshotExportData>;
 }
