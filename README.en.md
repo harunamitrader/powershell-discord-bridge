@@ -6,13 +6,13 @@
   <img src="docs/images/readme-header.png" alt="multicli-discord-bridge header" />
 </p>
 
-multicli-discord-bridge is a **desktop app that lets you operate multiple local AI CLI / PowerShell sessions on your own Windows PC from Discord**.  
-It sends messages from Discord to the terminal in each slot, then sends the result back to Discord. You can also keep watching the same live session in the app, so you can see what is running on your PC while using it.
+multicli-discord-bridge is a **local desktop app for running multiple AI CLIs in one window and controlling them from Discord**.  
+You can watch six slots at once, send instructions to each slot from Discord, and follow replies or progress without sitting in front of the machine. The main goal is not just remote terminal control, but **orchestrating multiple AI CLIs on different tasks in parallel and letting slots collaborate when needed**.
 
 > **Important premise**
 >
-> This tool **runs PowerShell on your own PC**.  
-> In other words, anything sent by approved Discord users becomes an operation against your PC. This is not a general-purpose bot for public servers. Treat it as a **local tool for personal or small-scale use**.
+> This tool **runs local terminals / CLIs on your own PC**.  
+> In other words, anything sent by approved Discord users becomes an operation against your PC. This is not a general-purpose bot for public servers. Treat it as a **local orchestration tool for personal or small-team use**.
 
 ## multicli-discord-bridge in one page
 
@@ -36,37 +36,47 @@ It sends messages from Discord to the terminal in each slot, then sends the resu
 
 ## What it can do
 
-- Bind one Discord channel to one PowerShell session
-- Automatically start six fixed PowerShell slots at launch, with slot5 and slot6 in a half-width right column
-- Send Discord text directly into PowerShell
-- Reply to Discord with the detected output diff
+- Show **six fixed slots in one window** at the same time, with slot5 and slot6 in a half-width right column
+- Bind one Discord channel to one slot and use **Discord as the control surface**
+- Send Discord text directly into the target slot's terminal / CLI
+- Reply to Discord with the detected output diff so you can track work remotely
 - Return a **terminal screenshot** with `!screenshot` / `!ss` even while busy, without forcing a redraw
 - Return an **app window screenshot** with `!windowscreenshot` / `!wss` even while busy
 - Return the tail of the **currently visible terminal text** with `!text N` / `!textN`
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
 - Also send plain text directly to slot1-slot6 from a local AI CLI or shell, activating the target slot first
+- Combine **slot-to-slot sends, text observation, and completion notifications** for AI handoff flows
+- Send scheduled prompts or commands to a chosen slot with **cron**
 - In the app terminal, use `Ctrl+C` to copy the current selection and `Ctrl+V` to paste clipboard text into the session
 - Let you watch the same live session from the app UI
+
+## What this app is good for
+
+- Running Copilot CLI / Claude Code / Codex CLI / Gemini CLI / Antigravity CLI on different tasks in parallel
+- Giving different slots different roles such as drafting, review, retry, or follow-up work
+- Accessing your home PC AI workspace from Discord while away from the machine
+- Seeing what every slot is doing at a glance and sending follow-up instructions only where needed
 
 ## Current limitations
 
 - **Windows only**
-- **PowerShell only**
 - Uses normal Discord messages, not slash commands
-- Multiple shells such as cmd / bash / zsh / WSL are not supported
+- The current default shell implementation is **PowerShell**
+- Switching between multiple shell types such as cmd / bash / zsh / WSL is not supported yet
 - Distributed as source code for now, not as an installer package
 
 ## What you need first
 
-Before you start, prepare these four things:
+Before you start, prepare these things:
 
 1. **A Windows PC**
 2. **Node.js 20 or later**
 3. **A Discord account**
 4. **A Discord server you control**
+5. **Any AI CLIs or dev tools you want to run** (optional: Copilot CLI, Claude Code, Codex CLI, Gemini CLI, and so on)
 
-The built-in Windows PowerShell works, but **PowerShell 7** is recommended.
+Internally the app uses PowerShell. The built-in Windows version works, but **PowerShell 7** is recommended.
 
 ## Setup
 
@@ -188,13 +198,13 @@ If first-time setup fails, prefer running **`npm install` â†’ `npm run build` â†
 ## 6. How to use it
 
 1. Start the app
-2. The app automatically creates **six fixed PowerShell slots**
+2. The app automatically creates **six fixed slots**
 3. Each slot reconnects to its saved Discord channel
 4. If a slot has no channel ID yet, the app auto-creates a Discord channel in the configured guild
 5. At startup, the shared artifact channel `terminal-artifacts` is also auto-created or reused
 6. On the first launch, the app auto-creates `discord-publish` under terminal 1's working directory
 7. Send a normal message to the channel
-8. The matching PowerShell slot processes the Discord content
+8. The matching slot terminal / CLI processes the Discord content
 9. The result is sent back to Discord
 10. Files saved in `discord-publish` are automatically uploaded to the artifact channel on both create and update
 11. You can open **Logs** at the top right to inspect startup logs, bridge logs, and terminal input logs inside the app overlay
@@ -205,13 +215,21 @@ When Discord sends a normal **text or control** request, if the app window is **
 
 The number of slots is fixed.  
 If you rename a workspace, the linked Discord channel name follows that new name.  
-Each PowerShell slot can be restarted with **Restart**.
+Each slot terminal can be restarted with **Restart**.
+
+### Typical slot collaboration flow
+
+- Ask the AI in slot2 to send a review request to slot3
+- Read visible text from slot4 to understand what it is doing now
+- Add `--notify-on-complete` when the requesting slot needs a completion callback
+- Use cron to send a recurring prompt to one specific slot
 
 ### Advanced: Send text to a slot from a local AI CLI or shell
 
-This is an **advanced local automation feature**. The normal workflow should still be **sending messages from Discord to each slot**.
+This is an **advanced local automation feature**. The normal workflow should still be **sending messages from Discord to each slot**.  
+But one of the main strengths of multicli-discord-bridge is that this local automation also enables **AI-to-AI handoff between slots**.
 
-The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send text to **slot1-slot6** without going through Discord. Those sends activate the target slot in the app first and automatically prepend a `[from: ...]` header to the delivered text.
+The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send text to **slot1-slot6** or observe slot text without going through Discord. Those sends activate the target slot in the app first and automatically prepend a `[from: ...]` header to the delivered text.
 
 ```powershell
 npm run slot:send -- --slot slot3 --from human --text "Review this diff"
@@ -237,7 +255,7 @@ line 2
 
 ### Common commands
 
-- Normal message: send it directly to PowerShell
+- Normal message: send it directly to the matching slot terminal / CLI
 - `!/command`: send `/command` as-is with Enter
 - `!noenterTEXT`: send `TEXT` without Enter and do not wait for output
 - `!enter`: send Enter only
@@ -336,7 +354,7 @@ Check these points:
 - Can the bot read the channel?
 - Did you enable **MESSAGE CONTENT INTENT** in the Discord Developer Portal?
 
-### The app starts but PowerShell does not behave as expected
+### The app starts but the CLI inside a slot does not behave as expected
 
 - Is PowerShell 7 installed?
 - Are execution policies or security restrictions too strict on this PC?

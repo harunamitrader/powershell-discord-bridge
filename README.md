@@ -6,13 +6,13 @@
   <img src="docs/images/readme-header.png" alt="multicli-discord-bridge header" />
 </p>
 
-multicli-discord-bridge は、**自分の Windows PC 上の複数の AI CLI / PowerShell セッションを Discord から操作するためのデスクトップアプリ**です。  
-Discord に送ったメッセージを各 slot のターミナルに渡し、返ってきた結果を Discord に返します。アプリ側では同じセッションの画面を見続けられるので、「今 PC 上で何が動いているか」を確認しながら使えます。
+multicli-discord-bridge は、**複数の AI CLI を 1 つのウィンドウに並べて、Discord から扱えるローカルデスクトップアプリ**です。  
+6 つの slot を 1 画面で見ながら、Discord から各 slot に指示を送り、返答や進行状況をそのまま追えます。単に「PC 上のターミナルを遠隔操作する」ためだけでなく、**複数の AI CLI に異なるタスクを同時に並走させ、必要なら slot 同士を連携させる**ことを主目的にしています。
 
 > **大事な前提**
 >
-> このツールは **あなたの PC 上で PowerShell を実行します**。  
-> つまり、許可した Discord ユーザーから送られた内容は、あなたの PC に対する操作になります。公開サーバーに入れる汎用 bot ではなく、**自分用・小規模運用向けのローカルツール**として考えてください。
+> このツールは **あなたの PC 上でローカルの terminal / CLI を実行します**。  
+> つまり、許可した Discord ユーザーから送られた内容は、あなたの PC に対する操作になります。公開サーバーに入れる汎用 bot ではなく、**自分用・小規模運用向けのローカル orchestration ツール**として考えてください。
 
 ## 1枚でわかる multicli-discord-bridge
 
@@ -36,38 +36,47 @@ Discord に送ったメッセージを各 slot のターミナルに渡し、返
 
 ## できること
 
-- Discord の 1 チャンネルを 1 つの PowerShell セッションにひも付ける
-- 起動時に 6 つの固定 PowerShell slot を自動で立ち上げる（slot5 / slot6 は右側の半幅列）
-- Discord に送った文章を、そのまま PowerShell 側へ入力する
-- 実行結果の差分を Discord に返信する
+- 6 つの固定 slot を **1 つのウィンドウ**に並べて同時に監視する（slot5 / slot6 は右側の半幅列）
+- Discord の 1 チャンネルを 1 つの slot にひも付けて、**Discord を操作面**として使う
+- Discord に送った文章を、そのまま対象 slot の terminal / CLI に入力する
+- 実行結果の差分を Discord に返信し、**離れた場所からでも作業状況を確認**する
 - `!screenshot` / `!ss` で **対象 terminal のスクリーンショット**を Discord に返す（busy 中も即時取得、再描画誘発なし）
 - `!windowscreenshot` / `!wss` で **アプリ画面全体のスクリーンショット**を Discord に返す（busy 中も即時取得）
 - `!text N` / `!textN` で **現在表示中の terminal テキスト末尾**を最大 N 文字まで Discord に返す
 - terminal 1 の working directory 直下に作る `discord-publish` フォルダを監視し、新規作成・更新保存したファイルを **共通 artifact チャンネル**へ自動送信する
 - 実行中でも Discord / アプリ側から追加入力をそのまま流し込める
 - ローカルの AI CLI / shell からも、送信先 slot をアクティブ化したうえでプレーンテキストを直接送れる
+- slot 間で **テキスト送信 / テキスト観測 / 完了通知付き依頼** を組み合わせた連携ができる
 - **Cron スケジュール**で指定した slot に自動的にコマンドやテキストを送信する（同梱の `bridge-cron-tui` で管理）
 - アプリ側の terminal では `Ctrl+C` で選択テキストをコピーし、`Ctrl+V` でクリップボードのテキストを貼り付けられる
 - アプリ側でも同じセッション画面を見て、進行状況や出力を確認する
 
+## このアプリが向いている用途
+
+- Copilot CLI / Claude Code / Codex CLI / Gemini CLI / Antigravity CLI などに**異なるタスクを同時並行で走らせたい**
+- AI ごとに担当 slot を分けて、**1 つの作業を分担・レビュー・再実行**したい
+- 外出先や別 PC から Discord 経由で、自宅 PC 上の AI CLI ワークスペースを触りたい
+- 「どの slot が何をしているか」を 1 画面で把握しつつ、必要な slot にだけ追加指示を送りたい
+
 ## 現在の制限
 
 - **Windows 専用**
-- **PowerShell 専用**
 - Discord の slash command ではなく、通常メッセージ入力ベース
-- 複数のシェル（cmd / bash / zsh / WSL など）は未対応
+- 現在の既定 shell は **PowerShell**（内部実装として利用）
+- 複数のシェル（cmd / bash / zsh / WSL など）の切り替えは未対応
 - インストーラー付き配布ではなく、**現時点ではソースコードから起動**する形
 
 ## 先に用意するもの
 
-導入前に、次の 4 つを用意してください。
+導入前に、次のものを用意してください。
 
 1. **Windows PC**
 2. **Node.js 20 以降**
 3. **Discord アカウント**
 4. **自分で管理できる Discord サーバー**
+5. **使いたい AI CLI や開発ツール**（任意。Copilot CLI / Claude Code / Codex CLI / Gemini CLI など）
 
-PowerShell は Windows 標準版でも動きますが、**PowerShell 7** を入れておくことをおすすめします。
+内部では PowerShell を使います。Windows 標準版でも動きますが、**PowerShell 7** を入れておくと扱いやすいです。
 
 ## 導入手順
 
@@ -189,16 +198,16 @@ npm run setup:shortcuts
 ## 6. 使い方
 
 1. アプリを起動する
-2. アプリ起動時に、**6つ固定の PowerShell slot** が自動で作成される
-3. 各枠は保存済みの設定を使って、同じ Discord チャンネルに再接続される
-4. 各枠の channel ID が空なら、指定 guild に Discord チャンネルが自動作成される
+2. アプリ起動時に、**6 つの固定 slot** が自動で作成される
+3. 各 slot は保存済み設定を使って、同じ Discord チャンネルに再接続される
+4. 各 slot の channel ID が空なら、指定 guild に Discord チャンネルが自動作成される
 5. 起動時に、共通の artifact チャンネル `terminal-artifacts` も自動作成または再利用される
 6. 初回起動時は terminal 1 の working directory 直下に `discord-publish` フォルダが自動作成される
 7. そのチャンネルに普通のメッセージを送る
-8. 対応する PowerShell 枠で Discord の内容が処理される
+8. 対応する slot の terminal / CLI で Discord の内容が処理される
 9. 結果が Discord に返る
 10. `discord-publish` に保存したファイルは、新規作成・更新時に artifact チャンネルへ自動添付送信される
-11. 右上の **Logs** を開くと、外部コンソールに出ている起動ログや bridge ログ、terminal 入力ログをアプリ内オーバーレイでも確認できる
+11. 右上の **Logs** を開くと、起動ログや bridge ログ、terminal 入力ログをアプリ内オーバーレイでも確認できる
 
 通常の text / control リクエストが **10秒たっても完了していない場合**は、その時点の terminal スクリーンショットを**途中確認用に 1 回だけ**返します。途中スクリーンショットには `[inflight screenshot after 10s while running: terminal]` のように**現在の設定秒数付きラベル**も付きます。10秒以内に完了した場合は、この途中スクリーンショットは返さず、通常の返信テキストと auto screenshot 設定だけが適用されます。この機能は **既定で ON** で、Settings と `preferences.json` から OFF / delay 変更ができます。
 
@@ -206,13 +215,21 @@ npm run setup:shortcuts
 
 各 slot は固定で、増減はできません。  
 ワークスペース名を変更した場合は、対応する Discord チャンネル名も同じ名前に追従して変更されます。  
-各枠の PowerShell は **Restart** で再起動できます。
+各枠の terminal は **Restart** で再起動できます。
+
+### slot 連携のイメージ
+
+- slot2 の AI から slot3 にレビュー依頼を送る
+- slot4 の visible text を取得して、いま何をしているか把握する
+- `--notify-on-complete` を付けて、依頼先 slot の完了通知を元の slot に返す
+- cron から特定 slot に定期プロンプトを送る
 
 ### Advanced: ローカル AI / shell から slot にテキスト送信する
 
-これは **advanced 向けのローカル自動化機能** です。通常運用は引き続き **Discord から各 slot に送る使い方** を前提にしてください。
+これは **advanced 向けのローカル自動化機能** です。通常運用は引き続き **Discord から各 slot に送る使い方** を前提にしてください。  
+ただし multicli-discord-bridge の強みは、このローカル automation を使って **AI から別 slot の AI へ依頼を渡せる** 点にあります。
 
-実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot6 に text を送る**最小操作を使えます。送信時は、対象 slot を先にアプリ側でアクティブ化し、本文の先頭には自動で `[from: ...]` ヘッダーが付きます。
+実行中の Electron アプリは、**ローカル専用の automation endpoint** を 1 つ持ちます。これにより、Discord を経由せず **slot1-slot6 に text を送る / text を観測する** 最小操作を使えます。送信時は、対象 slot を先にアプリ側でアクティブ化し、本文の先頭には自動で `[from: ...]` ヘッダーが付きます。
 
 ```powershell
 npm run slot:send -- --slot slot3 --from human --text "この差分を見て"
@@ -238,7 +255,7 @@ line 2
 
 ### よく使うコマンド
 
-- 通常のメッセージ: PowerShell へそのまま送信
+- 通常のメッセージ: 対応する slot の terminal / CLI へそのまま送信
 - `!/command`: `/command` をそのまま Enter 付きで送る
 - `!noenterTEXT`: `TEXT` を Enter なしで送る（出力待ちはしない）
 - `!enter`: Enter だけ送る
@@ -337,7 +354,7 @@ Get-Location
 - Bot がそのチャンネルを読めるか
 - Discord Developer Portal で **MESSAGE CONTENT INTENT** を有効にしたか
 
-### アプリは起動するが PowerShell が期待どおり動かない
+### アプリは起動するが slot 内の CLI が期待どおり動かない
 
 - PowerShell 7 を入れているか
 - 会社 PC などで実行ポリシーやセキュリティ制限が強すぎないか
