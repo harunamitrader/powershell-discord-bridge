@@ -536,7 +536,7 @@ export function App() {
 
   async function restartSlot(slotId: TerminalSlotId) {
     const slotName = findSlotName(slotSettings, slotId);
-    if (!window.confirm(`${slotName} を再起動しますか？\n現在の PowerShell セッションは終了して、新しいセッションに置き換わります。`)) {
+    if (!window.confirm(`${slotName} を再起動しますか？\n現在のターミナルセッションは終了して、新しいセッションに置き換わります。`)) {
       return;
     }
 
@@ -621,8 +621,8 @@ export function App() {
       <div className="workspace-shell">
         <header className="titlebar titlebar--main">
           <div className="titlebar__left">
-            <span className="titlebar__eyebrow">PowerShell</span>
-            <span className="titlebar__title">Discord Bridge</span>
+            <span className="titlebar__eyebrow">multicli</span>
+            <span className="titlebar__title">discord-bridge</span>
             {feedback ? <span className="titlebar__feedback">{feedback}</span> : null}
           </div>
           <div className="titlebar__actions">
@@ -714,8 +714,8 @@ export function App() {
                     />
                   ) : (
                     <div className="terminal-tile__placeholder">
-                      <div className="terminal-tile__placeholder-title">PowerShell unavailable</div>
-                      <div className="terminal-tile__placeholder-body">Restart でこの slot の PowerShell を再作成できます。</div>
+                      <div className="terminal-tile__placeholder-title">Terminal unavailable</div>
+                      <div className="terminal-tile__placeholder-body">Restart でこの slot のターミナルを再作成できます。</div>
                     </div>
                   )}
                 </div>
