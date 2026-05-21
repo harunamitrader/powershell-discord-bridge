@@ -378,6 +378,20 @@ npm run cron:tui:install   # 初回のみ
 npm run cron:tui:start
 ```
 
+`mcron` を**どこのディレクトリからでも**起動できるようにしたい場合は、最初に 1 回だけ次を実行します。
+
+```powershell
+npm run setup:commands
+```
+
+これで、この clone を指す global command として `mcron` が登録されます。
+
+```powershell
+mcron
+```
+
+OSS として clone した他ユーザーも、同じように **repo を clone → `npm install` → `npm run cron:tui:install` → `npm run setup:commands`** を 1 回行えば、以後はどこからでも `mcron` を実行できます。実体は `npm link` なので、repo の場所を変えた場合は新しい場所で再度 `npm run setup:commands` を実行してください。
+
 ジョブファイルの形式（例: `cron-jobs\morning-task.json`）:
 
 ```json

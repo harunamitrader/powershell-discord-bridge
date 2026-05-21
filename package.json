@@ -14,6 +14,9 @@
   },
   "homepage": "https://github.com/harunamitrader/multicli-discord-bridge#readme",
   "main": "dist-electron/main/index.js",
+  "bin": {
+    "mcron": "./scripts/mcron.cjs"
+  },
   "scripts": {
     "clean": "rimraf dist dist-electron",
     "dev": "concurrently -k -n MAIN,RENDERER,ELECTRON -c blue,green,magenta \"npm:dev:main\" \"npm:dev:renderer\" \"npm:dev:electron\"",
@@ -25,6 +28,7 @@
     "build:renderer": "vite build",
     "cron:tui:install": "npm --prefix .\\bridge-cron-tui install",
     "cron:tui:start": "npm --prefix .\\bridge-cron-tui start",
+    "setup:commands": "npm link",
     "slot:observe": "node .\\scripts\\bridge-observe.cjs",
     "slot:send": "node .\\scripts\\bridge-send-slot.cjs",
     "start": "cross-env NODE_ENV=production electron .",

@@ -378,6 +378,20 @@ npm run cron:tui:install   # first time only
 npm run cron:tui:start
 ```
 
+If you want to launch the cron TUI from **any directory** with `mcron`, run this once first:
+
+```powershell
+npm run setup:commands
+```
+
+That registers `mcron` as a global command pointing at this clone:
+
+```powershell
+mcron
+```
+
+Other OSS users who clone the repository can enable the same workflow with **clone the repo → `npm install` → `npm run cron:tui:install` → `npm run setup:commands`**. This uses `npm link`, so if the repository is moved to a different path, they should run `npm run setup:commands` again from the new location.
+
 Job file shape (example: `cron-jobs\morning-task.json`):
 
 ```json
