@@ -123,7 +123,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
-- `ALLOW_GUILD_ID` can optionally restrict operation to a single guild
+- `ALLOW_GUILD_ID` is required and restricts operation to **exactly one** guild
 - The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --from human --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3 --from human`. `--from` is required and the delivered text automatically gets a `[from: ...]` header. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md`
 - Delayed inflight screenshots are enabled by default and can be changed in seconds through `preferences.json` with `bridgeSettings.inflightScreenshotOnRunningRequest` and `bridgeSettings.timing.inflightScreenshotDelaySeconds`
 - If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
@@ -162,18 +162,13 @@ Minimum required settings:
 ```env
 DISCORD_BOT_TOKEN=...
 ALLOW_USER_IDS=...
-```
-
-Optional setting:
-
-```env
 ALLOW_GUILD_ID=...
 ```
 
 ## 10. Notes
 
 - `.env` is loaded automatically when the app starts
-- Older keys such as `DISCORD_ALLOWED_USER_ID` and `DISCORD_ALLOWED_GUILD_IDS` are still accepted for compatibility
+- Older keys such as `DISCORD_ALLOWED_USER_ID` and `DISCORD_ALLOWED_GUILD_IDS` are still accepted for compatibility, but guild-side config must still resolve to exactly one guild ID
 - See `README.en.md` for full setup instructions
 
 ## 11. Fixed six-slot layout

@@ -1211,7 +1211,7 @@ export class DiscordBridgeService {
       return false;
     }
 
-    return !this.config.guildId || this.config.guildId === guildId;
+    return this.config.guildId === guildId;
   }
 
   private async ensureSlotBinding(slotId: TerminalSlotId): Promise<void> {
@@ -1286,7 +1286,7 @@ export class DiscordBridgeService {
     const existing = channelId ? await this.fetchGuildTextChannel(channelId) : undefined;
 
     if (existing) {
-      if (this.config.guildId && existing.guildId !== this.config.guildId) {
+      if (existing.guildId !== this.config.guildId) {
         throw new Error(`Configured guild ${this.config.guildId} does not match channel ${channelId}.`);
       }
 
@@ -1325,27 +1325,17 @@ export class DiscordBridgeService {
       return undefined;
     }
 
-    if (this.config.guildId) {
-      return this.client.guilds.fetch(this.config.guildId);
-    }
-
     if (existingChannelId) {
       const existingChannel = await this.fetchGuildTextChannel(existingChannelId);
       if (existingChannel) {
+        if (existingChannel.guildId !== this.config.guildId) {
+          throw new Error(`Configured guild ${this.config.guildId} does not match channel ${existingChannelId}.`);
+        }
         return this.client.guilds.fetch(existingChannel.guildId);
       }
     }
 
-    const guilds = [...this.client.guilds.cache.values()];
-    if (guilds.length === 1) {
-      return guilds[0];
-    }
-
-    if (guilds.length === 0) {
-      return undefined;
-    }
-
-    throw new Error('Discord channel auto-creation requires ALLOW_GUILD_ID when the bot belongs to multiple guilds.');
+    return this.client.guilds.fetch(this.config.guildId);
   }
 
   private emitSessionActivated(sessionId: string): void {

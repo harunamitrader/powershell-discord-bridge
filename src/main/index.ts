@@ -41,6 +41,7 @@ async function bootstrap(): Promise<void> {
   if (bridgeRuntimeConfig.allowUserIds.length === 0) {
     console.warn('ALLOW_USER_IDS is empty. Discord commands are blocked until at least one allowed user ID is configured.');
   }
+  console.info(`Discord bridge restricted to guild ${bridgeRuntimeConfig.guildId}.`);
   const channelSessionRegistry = new ChannelSessionRegistry(terminalSessionManager);
   const terminalAutomationService = new TerminalAutomationService(terminalSessionManager, bridgeRuntimeConfig, preferencesStore);
   const window = createMainWindow(preferencesStore);

@@ -119,7 +119,7 @@ Then you can copy user IDs and guild IDs from the right-click menu.
 You need:
 
 - **Your own user ID**
-- **An optional guild ID if you want to limit one guild**
+- **The single guild ID you want to allow**
 
 ## 4. Create the config file
 
@@ -134,21 +134,15 @@ Open `.env` in Notepad or another editor and change at least these values:
 ```env
 DISCORD_BOT_TOKEN=put-your-bot-token-here
 ALLOW_USER_IDS=put-your-discord-user-id-here
-```
-
-If needed, you can also limit the bot to a single guild:
-
-```env
-ALLOW_USER_IDS=123456789012345678,234567890123456789
-ALLOW_GUILD_ID=345678901234567890
+ALLOW_GUILD_ID=put-your-target-guild-id-here
 ```
 
 ### Notes
 
 - `.env` is loaded automatically when the app starts
-- If `ALLOW_GUILD_ID` is empty, the bot can work across the guilds it has joined
+- `ALLOW_GUILD_ID` is **required** and must contain **exactly one** guild ID
 - If `ALLOW_USER_IDS` is left empty, the app accepts no user messages for safety
-- Older names such as `DISCORD_ALLOWED_USER_ID` and `DISCORD_ALLOWED_GUILD_IDS` are still supported for compatibility, but use `ALLOW_USER_IDS` and `ALLOW_GUILD_ID` for new setups
+- Older names such as `DISCORD_ALLOWED_USER_ID` and `DISCORD_ALLOWED_GUILD_IDS` are still supported for compatibility, but guild-side config must still resolve to **exactly one** ID or startup fails
 
 ## 5. First launch
 
@@ -350,7 +344,7 @@ Check these points:
 
 - Is `DISCORD_BOT_TOKEN` correct?
 - Does `ALLOW_USER_IDS` contain your user ID?
-- If you set `ALLOW_GUILD_ID`, is that guild ID correct?
+- Is `ALLOW_GUILD_ID` set to the correct guild ID?
 - Can the bot read the channel?
 - Did you enable **MESSAGE CONTENT INTENT** in the Discord Developer Portal?
 
@@ -370,7 +364,7 @@ Check these points:
 - This tool **pipes approved Discord messages into your own PC**
 - Do not use it in public servers or channels where many unknown people can post
 - Always restrict `ALLOW_USER_IDS`
-- If needed, also restrict `ALLOW_GUILD_ID`
+- Always set `ALLOW_GUILD_ID` and keep it limited to one guild
 - Never commit `.env` to Git
 
 ## Cron scheduling

@@ -3,7 +3,7 @@ import { resolveBridgeStoragePath } from '../app/appPathMigration';
 export interface BridgeRuntimeConfig {
   discordBotToken?: string;
   allowUserIds: string[];
-  guildId?: string;
+  guildId: string;
   completion: {
     settleMs: number;
     softTimeoutMs: number;
@@ -38,7 +38,7 @@ export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
   return {
     discordBotToken: readOptionalString('DISCORD_BOT_TOKEN'),
     allowUserIds: parseList(['ALLOW_USER_IDS', 'DISCORD_ALLOWED_USER_IDS', 'DISCORD_ALLOWED_USER_ID']),
-    guildId: readOptionalString(['ALLOW_GUILD_ID', 'ALLOW_GUILD_IDS', 'DISCORD_ALLOWED_GUILD_ID', 'DISCORD_ALLOWED_GUILD_IDS']),
+    guildId: readRequiredSingleValue(['ALLOW_GUILD_ID', 'ALLOW_GUILD_IDS', 'DISCORD_ALLOWED_GUILD_ID', 'DISCORD_ALLOWED_GUILD_IDS'], 'ALLOW_GUILD_ID'),
     completion: {
       settleMs: 2000,
       softTimeoutMs: 20000,
@@ -89,6 +89,20 @@ function readOptionalString(names: string | string[]): string | undefined {
   }
 
   return undefined;
+}
+
+function readRequiredSingleValue(names: string | string[], canonicalName: string): string {
+  const value = readOptionalString(names);
+  if (!value) {
+    throw new Error(`${canonicalName} is required and must contain exactly one guild ID.`);
+  }
+
+  const parts = value.split(/[,\s]+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length !== 1) {
+    throw new Error(`${canonicalName} must contain exactly one guild ID.`);
+  }
+
+  return parts[0];
 }
 
 function readNumber(name: string, fallback: number): number {

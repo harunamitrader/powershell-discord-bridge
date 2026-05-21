@@ -100,6 +100,7 @@
 - リネーム UI をアプリ内編集に変更
 - `.env` をアプリ起動時に自動読み込みするよう改善
 - 許可ユーザー / guild 制限の環境変数に後方互換を追加
+- `ALLOW_GUILD_ID` を単一必須に変更し、複数 guild への広域反応を防止
 - bridge の soft timeout / hard timeout / fixed dimensions をアプリ設定へ移動
 - guild 設定を単一 `ALLOW_GUILD_ID` ベースに整理
 - 左サイドバー UI を廃止し、固定4枠レイアウトと各 terminal のタイトルバー操作へ移行
