@@ -18,13 +18,18 @@ You can watch six slots at once, send instructions to each slot from Discord, an
 
 ![multicli-discord-bridge one-page overview](docs/images/readme-overview-en.png)
 
-## Recent additions
+## Showcase visuals
 
 <p align="center">
-  <img src="docs/images/readme-whats-new-en-portrait.png" alt="multicli-discord-bridge README addendum highlights" width="760" />
+  <img src="docs/images/readme-showcase-01.png" alt="multicli-discord-bridge showcase visual 1" width="420" />
+  <img src="docs/images/readme-showcase-02.png" alt="multicli-discord-bridge showcase visual 2" width="420" />
 </p>
 
 ## Screenshots
+
+### UI overview
+
+<img src="docs/images/readme-screenshot-01.png" alt="multicli-discord-bridge UI overview screenshot" width="760" />
 
 ### App window
 
@@ -37,6 +42,7 @@ You can watch six slots at once, send instructions to each slot from Discord, an
 ## What it can do
 
 - Show **six fixed slots in one window** at the same time, with slot5 and slot6 in a half-width right column
+- Drag two vertical dividers and one horizontal divider to resize the **visible pane layout only**, while keeping the internal terminal size fixed
 - Bind one Discord channel to one slot and use **Discord as the control surface**
 - Send Discord text directly into the target slot's terminal / CLI
 - Reply to Discord with the detected output diff so you can track work remotely
