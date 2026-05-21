@@ -11,7 +11,7 @@ if (-not (Test-Path -LiteralPath $SignalPath)) {
 
 function Test-BridgeMainWindowVisible {
   $bridgeWindow = Get-Process -Name electron -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowTitle -eq 'PowerShell Discord Bridge' } |
+    Where-Object { $_.MainWindowTitle -eq 'multicli-discord-bridge' } |
     Select-Object -First 1
 
   return $null -ne $bridgeWindow
@@ -22,7 +22,7 @@ Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'PowerShell Discord Bridge'
+$form.Text = 'multicli-discord-bridge'
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.ClientSize = New-Object System.Drawing.Size(420, 132)
@@ -38,7 +38,7 @@ $titleLabel = New-Object System.Windows.Forms.Label
 $titleLabel.AutoSize = $true
 $titleLabel.Location = New-Object System.Drawing.Point(22, 18)
 $titleLabel.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
-$titleLabel.Text = 'Starting PowerShell Discord Bridge...'
+$titleLabel.Text = 'Starting multicli-discord-bridge...'
 $form.Controls.Add($titleLabel)
 
 $detailLabel = New-Object System.Windows.Forms.Label

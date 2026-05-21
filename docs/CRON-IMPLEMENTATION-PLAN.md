@@ -6,10 +6,10 @@
 
 ---
 
-## Phase 1: powershell-discord-bridge に CronJobScheduler を追加
+## Phase 1: multicli-discord-bridge に CronJobScheduler を追加
 
 ### 対象リポジトリ
-`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\powershell-discord-bridge`
+`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\multicli-discord-bridge`
 
 ---
 
@@ -222,7 +222,7 @@ npm run build
 ## Phase 2: bridge-cron-tui を repo に同梱
 
 ### 対象ディレクトリ
-`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\powershell-discord-bridge\bridge-cron-tui`
+`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\multicli-discord-bridge\bridge-cron-tui`
 
 ---
 
@@ -397,7 +397,7 @@ node src/index.js
 - [ ] テストジョブで毎分実行されることを確認済み
 
 ### Phase 2
-- [ ] `powershell-discord-bridge\bridge-cron-tui` が存在する
+- [ ] `multicli-discord-bridge\bridge-cron-tui` が存在する
 - [ ] `node src/index.js` でTUIが起動する
 - [ ] ジョブの追加・編集・削除・トグルができる
 - [ ] 保存した JSON が Bridge に自動反映される（ホットリロード）

@@ -1,6 +1,7 @@
 import { config as loadEnvFile } from 'dotenv';
 import { app, BrowserWindow } from 'electron';
 import { APP_USER_MODEL_ID } from './app/appIdentity';
+import { prepareAppPathMigration } from './app/appPathMigration';
 import { AppLogStore } from './app/appLogStore';
 import { createMainWindow } from './app/createMainWindow';
 import { loadBridgeRuntimeConfig } from './bridge/bridgeConfig';
@@ -20,6 +21,8 @@ const appLogStore = new AppLogStore();
 appLogStore.installProcessCapture();
 
 loadEnvFile();
+app.setName('multicli-discord-bridge');
+prepareAppPathMigration();
 app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow: BrowserWindow | undefined;

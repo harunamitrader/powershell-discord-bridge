@@ -23,7 +23,7 @@ export function createMainWindow(preferencesStore: PreferencesStore): BrowserWin
     autoHideMenuBar: true,
     backgroundColor: '#181818',
     icon: resolveAppIconPath(),
-    title: 'PowerShell Discord Bridge',
+    title: 'multicli-discord-bridge',
     webPreferences: {
       preload: path.resolve(__dirname, '../../preload/index.js'),
       contextIsolation: true,
@@ -48,7 +48,7 @@ export function createMainWindow(preferencesStore: PreferencesStore): BrowserWin
       defaultId: 0,
       cancelId: 0,
       noLink: true,
-      message: 'PowerShell Discord Bridge を終了しますか？',
+      message: 'multicli-discord-bridge を終了しますか？',
       detail: '開いているターミナルセッションも終了します。'
     });
     if (choice === 0) {

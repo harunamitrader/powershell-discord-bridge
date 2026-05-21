@@ -2,7 +2,7 @@ import { app } from 'electron';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-export const APP_USER_MODEL_ID = 'com.harunamitrader.powershell-discord-bridge';
+export const APP_USER_MODEL_ID = 'com.harunamitrader.multicli-discord-bridge';
 
 export function resolveAppIconPath(): string | undefined {
   const roots = [app.getAppPath(), process.resourcesPath];

@@ -115,7 +115,7 @@ export class TerminalSessionManager extends EventEmitter {
           ...process.env,
           COLORTERM: 'truecolor',
           TERM: 'xterm-256color',
-          TERM_PROGRAM: 'powershell-discord-bridge'
+          TERM_PROGRAM: 'multicli-discord-bridge'
         }
       }
     );

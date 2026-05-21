@@ -1,11 +1,11 @@
 ---
-name: powershell-discord-bridge-slot-send
-description: Send plain text to slot1-slot6 of the running PowerShell Discord Bridge Electron app by calling the local slot-send CLI.
+name: multicli-discord-bridge-slot-send
+description: Send plain text to slot1-slot6 of the running multicli-discord-bridge Electron app by calling the local slot-send CLI.
 ---
 
-# PowerShell Discord Bridge Slot Send
+# multicli-discord-bridge slot send
 
-Use this skill when the user wants plain text sent into **slot1-slot6** of the running `powershell-discord-bridge` app.
+Use this skill when the user wants plain text sent into **slot1-slot6** of the running `multicli-discord-bridge` app.
 
 ## Scope
 
@@ -16,7 +16,7 @@ Use this skill when the user wants plain text sent into **slot1-slot6** of the r
 
 ## Repository
 
-`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\powershell-discord-bridge`
+`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\multicli-discord-bridge`
 
 ## Primary command
 

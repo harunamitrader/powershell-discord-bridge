@@ -20,7 +20,7 @@ import { buildTerminalScreenshotFilename, captureTerminalScreenshotPng } from '.
 import { buildWindowScreenshotFilename, captureWindowScreenshotPng } from '../bridge/windowScreenshotCapture';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 
-const LOCAL_AUTOMATION_PIPE_PATH = '\\\\.\\pipe\\powershell-discord-bridge-local-automation-v1';
+const LOCAL_AUTOMATION_PIPE_PATH = '\\\\.\\pipe\\multicli-discord-bridge-local-automation-v1';
 const DEFAULT_DELIVERY_CHECK_DELAY_MS = 3000;
 const DEFAULT_TEXT_OBSERVE_MAX_CHARS = 4000;
 const OBSERVE_TEXT_TAIL_CHARS = 600;

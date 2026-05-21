@@ -1,6 +1,4 @@
-import { app } from 'electron';
-import path from 'node:path';
-import type { TerminalDimensions } from '../../shared/terminal';
+import { resolveBridgeStoragePath } from '../app/appPathMigration';
 
 export interface BridgeRuntimeConfig {
   discordBotToken?: string;
@@ -65,9 +63,9 @@ export function loadBridgeRuntimeConfig(): BridgeRuntimeConfig {
       downloadTimeoutMs: 30000
     },
     storage: {
-      snapshotDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'snapshots'),
-      processingLogDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'processing-logs'),
-      incomingAttachmentDirectory: path.join(app.getPath('userData'), 'discord-bridge', 'incoming-files')
+      snapshotDirectory: resolveBridgeStoragePath('snapshots'),
+      processingLogDirectory: resolveBridgeStoragePath('processing-logs'),
+      incomingAttachmentDirectory: resolveBridgeStoragePath('incoming-files')
     }
   };
 }

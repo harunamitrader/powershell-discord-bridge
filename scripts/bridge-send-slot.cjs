@@ -2,7 +2,7 @@
 
 const net = require('node:net');
 
-const LOCAL_AUTOMATION_PIPE_PATH = '\\\\.\\pipe\\powershell-discord-bridge-local-automation-v1';
+const LOCAL_AUTOMATION_PIPE_PATH = '\\\\.\\pipe\\multicli-discord-bridge-local-automation-v1';
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -263,7 +263,7 @@ function sendRequest(request) {
 
 function renderConnectionError(error) {
   if (error && error.code === 'ENOENT') {
-    return 'The running PowerShell Discord Bridge app was not found. Start the Electron app first.';
+    return 'The running multicli-discord-bridge app was not found. Start the Electron app first.';
   }
 
   return formatError(error);

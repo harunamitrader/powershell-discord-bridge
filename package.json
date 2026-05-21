@@ -1,18 +1,18 @@
 {
-  "name": "powershell-discord-bridge",
+  "name": "multicli-discord-bridge",
   "version": "0.1.0",
-  "productName": "PowerShell Discord Bridge",
+  "productName": "multicli-discord-bridge",
   "private": false,
-  "description": "Electron app for operating a local PowerShell terminal from Discord.",
+  "description": "Electron app for operating multiple local AI CLIs and PowerShell terminals from Discord.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/harunamitrader/powershell-discord-bridge.git"
+    "url": "https://github.com/harunamitrader/multicli-discord-bridge.git"
   },
   "bugs": {
-    "url": "https://github.com/harunamitrader/powershell-discord-bridge/issues"
+    "url": "https://github.com/harunamitrader/multicli-discord-bridge/issues"
   },
-  "homepage": "https://github.com/harunamitrader/powershell-discord-bridge#readme",
+  "homepage": "https://github.com/harunamitrader/multicli-discord-bridge#readme",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "clean": "rimraf dist dist-electron",

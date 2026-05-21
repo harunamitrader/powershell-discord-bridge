@@ -1,10 +1,10 @@
-# PowerShell Discord Bridge Public Specification
+# multicli-discord-bridge Public Specification
 
 **Language:** [日本語](public-spec.md) | English
 
 ## 1. Overview
 
-PowerShell Discord Bridge is an **Electron app for operating PowerShell on a Windows PC from Discord**.  
+multicli-discord-bridge is an **Electron app for operating PowerShell on a Windows PC from Discord**.  
 The app runs locally on the PC, sends Discord messages into PowerShell, and sends the execution result back to Discord.
 
 This project is designed not as a **public remote-management bot**, but as a **bridge tool for operating your own local PC**.
@@ -124,7 +124,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
 - `ALLOW_GUILD_ID` can optionally restrict operation to a single guild
-- The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --from human --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3 --from human`. `--from` is required and the delivered text automatically gets a `[from: ...]` header. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`
+- The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --from human --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3 --from human`. `--from` is required and the delivered text automatically gets a `[from: ...]` header. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md`
 - Delayed inflight screenshots are enabled by default and can be changed in seconds through `preferences.json` with `bridgeSettings.inflightScreenshotOnRunningRequest` and `bridgeSettings.timing.inflightScreenshotDelaySeconds`
 - If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
 - Each slot stores its Discord channel ID and reconnects to the same channel after restart

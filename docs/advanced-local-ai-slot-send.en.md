@@ -17,7 +17,7 @@ It provides the smallest possible local AI handoff: **send `slot + from + text +
 
 ## Preconditions
 
-1. The `powershell-discord-bridge` Electron app must already be **running**
+1. The `multicli-discord-bridge` Electron app must already be **running**
 2. The command must run on the same Windows machine
 3. Node.js must be available so the repo CLI can run
 
@@ -92,7 +92,7 @@ This visible text keeps **visual wrap boundaries as line breaks**, which makes i
 npm run slot:observe -- --slot slot3 --screenshot
 ```
 
-PNG files are saved under `%APPDATA%\PowerShell Discord Bridge\automation-captures\...`, and the CLI returns the saved path as JSON.
+PNG files are saved under `%APPDATA%\multicli-discord-bridge\automation-captures\...`, and the CLI returns the saved path as JSON.
 
 ### Check the whole app window screenshot (`!wss` equivalent)
 
@@ -112,13 +112,13 @@ That keeps `AGENTS.md` clean while still letting an AI follow requests such as â
 1. Create this folder:
 
 ```text
-C:\Users\<your-user>\.copilot\skills\powershell-discord-bridge-slot-send
+C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-send
 ```
 
 2. Copy this template from the repo into that folder as `SKILL.md`:
 
 ```text
-docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md
+docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md
 ```
 
 3. Then ask Copilot in natural language:
@@ -176,7 +176,7 @@ Higher-level concepts such as review, handoff, or orchestration should be layere
 ### The Electron app was not found
 
 The app is not running yet.  
-Start `powershell-discord-bridge` first, then run the command again.
+Start `multicli-discord-bridge` first, then run the command again.
 
 ### I want text to appear without pressing Enter
 

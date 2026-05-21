@@ -1,34 +1,34 @@
-# PowerShell Discord Bridge
+# multicli-discord-bridge
 
 **Language:** [日本語](README.md) | English
 
 <p align="center">
-  <img src="docs/images/readme-header.png" alt="PowerShell Discord Bridge header" />
+  <img src="docs/images/readme-header.png" alt="multicli-discord-bridge header" />
 </p>
 
-PowerShell Discord Bridge is a **desktop app that lets you operate PowerShell on your own Windows PC from Discord**.  
-It sends messages from Discord to PowerShell, then sends the result back to Discord. You can also keep watching the same live session in the app, so you can see what is running on your PC while using it.
+multicli-discord-bridge is a **desktop app that lets you operate multiple local AI CLI / PowerShell sessions on your own Windows PC from Discord**.  
+It sends messages from Discord to the terminal in each slot, then sends the result back to Discord. You can also keep watching the same live session in the app, so you can see what is running on your PC while using it.
 
 > **Important premise**
 >
 > This tool **runs PowerShell on your own PC**.  
 > In other words, anything sent by approved Discord users becomes an operation against your PC. This is not a general-purpose bot for public servers. Treat it as a **local tool for personal or small-scale use**.
 
-## PowerShell Discord Bridge in one page
+## multicli-discord-bridge in one page
 
-![PowerShell Discord Bridge one-page overview](docs/images/readme-overview-en.png)
+![multicli-discord-bridge one-page overview](docs/images/readme-overview-en.png)
 
 ## Recent additions
 
 <p align="center">
-  <img src="docs/images/readme-whats-new-en-portrait.png" alt="PowerShell Discord Bridge README addendum highlights" width="760" />
+  <img src="docs/images/readme-whats-new-en-portrait.png" alt="multicli-discord-bridge README addendum highlights" width="760" />
 </p>
 
 ## Screenshots
 
 ### App window
 
-![PowerShell Discord Bridge app window](docs/images/app-window.png)
+![multicli-discord-bridge app window](docs/images/app-window.png)
 
 ### Example Discord response
 
@@ -75,8 +75,8 @@ The built-in Windows PowerShell works, but **PowerShell 7** is recommended.
 If you use Git:
 
 ```powershell
-git clone https://github.com/harunamitrader/powershell-discord-bridge.git
-cd powershell-discord-bridge
+git clone https://github.com/harunamitrader/multicli-discord-bridge.git
+cd multicli-discord-bridge
 ```
 
 If you do not use Git, download the repository from **Code > Download ZIP** on GitHub and extract it somewhere easy to find.
@@ -145,7 +145,7 @@ ALLOW_GUILD_ID=345678901234567890
 The simplest way is to run this file from the project root:
 
 ```powershell
-.\launch-powershell-discord-bridge.cmd
+.\launch-multicli-discord-bridge.cmd
 ```
 
 This launcher automatically does the following if needed. It checks both `dist\renderer` and `dist-electron`, and rebuilds when outputs are missing or stale after source changes.
@@ -162,6 +162,11 @@ npm run build
 npm start
 ```
 
+- On **PowerShell 7 or later**, it is fine to chain them as `npm install && npm run build && npm start`
+- On **Windows PowerShell 5.1** and other shells that do not support `&&`, run them **one line at a time** as shown above (or use `;`)
+- After a successful build, the minimum expected outputs are `dist\renderer\index.html`, `dist-electron\main\index.js`, and `dist-electron\preload\index.js`
+- For agent-driven setup or troubleshooting, these three manual commands are easier to debug than the one-shot `launch-multicli-discord-bridge.cmd`
+
 ### Create desktop shortcuts
 
 If you want a **desktop shortcut** with the app icon, run this once:
@@ -176,7 +181,9 @@ You can also do the same through npm:
 npm run setup:shortcuts
 ```
 
-The shortcut uses `assets\app-icon.ico` and starts the app through the hidden launcher so the normal console stays hidden. Right after launch, it shows a small startup message window only until the Electron window appears. `launch-powershell-discord-bridge.cmd` remains available for manual debugging. **It does not register itself in Startup.** If an older shortcut with the same name is still left in Startup, this setup removes it.
+The shortcut uses `assets\app-icon.ico` and starts the app through the hidden launcher so the normal console stays hidden. Right after launch, it shows a small startup message window only until the Electron window appears. `launch-multicli-discord-bridge.cmd` remains available for manual debugging. **It does not register itself in Startup.** If an older shortcut with the same name is still left in Startup, this setup removes it.
+
+If first-time setup fails, prefer running **`npm install` → `npm run build` → `npm start` separately** so you can see exactly which step failed.
 
 ## 6. How to use it
 
@@ -219,7 +226,7 @@ npm run slot:send -- --slot slot3 --from human --text "Review this diff"
 - Completion notifications are **off by default**, including skill-driven sends; add `--notify-on-complete --origin-slot slotN` only when needed
 - The command fails clearly when the Electron app is not running
 
-For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\powershell-discord-bridge-slot-send\SKILL.md`.
+For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md`.
 
 ```powershell
 @'
@@ -265,7 +272,7 @@ If a normal text or control request is **still in progress after the configured 
 
 `!text` only accepts `1-9500`, `!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting. In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters, repeated horizontal whitespace runs longer than 5 characters, and repeated line breaks longer than 5 are compressed down to 5. The requested `!text` count is based on this **post-compression reply length**. Long replies are split using the normal Discord reply chunking rules.
 
-When you attach **Discord files** to a normal message, the app saves them under `AppData\Roaming\...\discord-bridge\incoming-files\...` and prepends a comment block like this before sending the message to the terminal:
+When you attach **Discord files** to a normal message, the app saves them under `AppData\Roaming\...\multicli-discord-bridge\incoming-files\...` and prepends a comment block like this before sending the message to the terminal:
 
 ```text
 # [DISCORD_ATTACHMENTS_BEGIN]
@@ -287,7 +294,7 @@ Settings are split into **Global** and **Per slot** sections.
 - **Global:** Delayed inflight terminal screenshot (default `ON`) and inflight screenshot delay (default `10s`, saved as `bridgeSettings.inflightScreenshotOnRunningRequest` / `bridgeSettings.timing.inflightScreenshotDelaySeconds`)
 - **Global:** Artifact publish folder (default is `discord-publish` under terminal 1's cwd, destination channel is the auto-created `terminal-artifacts`)
 - **Global:** screen diff anchor chars (default `300`, saved as `bridgeSettings.diffAnchorChars` in `preferences.json`)
-- **Global:** bridge timing for redraw/input/Enter/repeat-key waits, plus completion detection, manual redraw, live view publish, screenshot capture, app restart, and attachment download waits/timeouts saved under `bridgeSettings.timing` in `%APPDATA%\PowerShell Discord Bridge\preferences.json`
+- **Global:** bridge timing for redraw/input/Enter/repeat-key waits, plus completion detection, manual redraw, live view publish, screenshot capture, app restart, and attachment download waits/timeouts saved under `bridgeSettings.timing` in `%APPDATA%\multicli-discord-bridge\preferences.json`
 - **Per slot:** workspace name, Discord channel ID, and that slot's default working directory
 
 Default values are:

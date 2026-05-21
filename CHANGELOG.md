@@ -95,7 +95,7 @@
 
 ### Changed
 
-- プロジェクト名を `powershell-discord-bridge` に変更
+- プロジェクト名を `multicli-discord-bridge` に変更
 - UI 上の不要なボタンを整理
 - リネーム UI をアプリ内編集に変更
 - `.env` をアプリ起動時に自動読み込みするよう改善

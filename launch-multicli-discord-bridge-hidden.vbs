@@ -6,16 +6,16 @@ Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 repoRoot = fso.GetParentFolderName(WScript.ScriptFullName)
-launcherPath = fso.BuildPath(repoRoot, "launch-powershell-discord-bridge.cmd")
-splashScriptPath = fso.BuildPath(repoRoot, "launch-powershell-discord-bridge-splash.ps1")
+launcherPath = fso.BuildPath(repoRoot, "launch-multicli-discord-bridge.cmd")
+splashScriptPath = fso.BuildPath(repoRoot, "launch-multicli-discord-bridge-splash.ps1")
 
 If Not fso.FileExists(launcherPath) Then
-  MsgBox "Required file not found: " & launcherPath, vbCritical, "PowerShell Discord Bridge"
+  MsgBox "Required file not found: " & launcherPath, vbCritical, "multicli-discord-bridge"
   WScript.Quit 1
 End If
 
 If Not fso.FileExists(splashScriptPath) Then
-  MsgBox "Required file not found: " & splashScriptPath, vbCritical, "PowerShell Discord Bridge"
+  MsgBox "Required file not found: " & splashScriptPath, vbCritical, "multicli-discord-bridge"
   WScript.Quit 1
 End If
 

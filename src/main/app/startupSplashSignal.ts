@@ -1,6 +1,6 @@
 import { existsSync, unlinkSync } from 'node:fs';
 
-const STARTUP_SPLASH_SIGNAL_ENV = 'PS_DISCORD_BRIDGE_SPLASH_SIGNAL';
+const STARTUP_SPLASH_SIGNAL_ENV = 'MULTICLI_DISCORD_BRIDGE_SPLASH_SIGNAL';
 
 export function dismissStartupSplash(): void {
   const signalPath = process.env[STARTUP_SPLASH_SIGNAL_ENV];

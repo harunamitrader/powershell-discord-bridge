@@ -2,10 +2,10 @@ import { app } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-const SCRIPT_NAME = 'powershell-discord-bridge-shell-integration.ps1';
+const SCRIPT_NAME = 'multicli-discord-bridge-shell-integration.ps1';
 
 const SCRIPT_CONTENT = [
-  '$script:PowerShellDiscordBridgeOriginalPrompt = $function:prompt',
+  '$script:MulticliDiscordBridgeOriginalPrompt = $function:prompt',
   'function global:prompt {',
   '  $esc = [char]27',
   '  $bell = [char]7',
@@ -17,8 +17,8 @@ const SCRIPT_CONTENT = [
   '  } catch {',
   '  }',
   '',
-  '  if ($script:PowerShellDiscordBridgeOriginalPrompt) {',
-  '    & $script:PowerShellDiscordBridgeOriginalPrompt',
+  '  if ($script:MulticliDiscordBridgeOriginalPrompt) {',
+  '    & $script:MulticliDiscordBridgeOriginalPrompt',
   '  } else {',
   '    "PS $($executionContext.SessionState.Path.CurrentLocation)> "',
   '  }',

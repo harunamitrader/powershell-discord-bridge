@@ -50,7 +50,7 @@ const FORCE_STOPPED_REPLY = '[terminal force-stopped and restarted]';
 const TERMINAL_RESTARTED_REPLY = '[terminal restarted]';
 const TERMINAL_REDRAWN_REPLY = '[terminal redrawn]';
 const APP_RESTARTING_REPLY = '[app restarting]';
-const APP_READY_NOTIFICATION = '[PowerShell Discord Bridge ready: slot1 connected]';
+const APP_READY_NOTIFICATION = '[multicli-discord-bridge ready: slot1 connected]';
 const NO_ACTIVE_REQUEST_REPLY = '[no active request]';
 const QUEUE_FULL_REPLY = 'Bridge busy: one request is already running and one is already queued.';
 const AUTO_SCREENSHOT_ENABLED_REPLY = '[auto screenshot after reply: enabled]';
@@ -61,7 +61,7 @@ const AUTO_SCREENSHOT_ATTACHMENT_REPLY = '[auto screenshot after completion: ter
 const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
 const ATTACHMENTS_UNSUPPORTED_REPLY = '[attachments rejected: attachments are only supported on regular text messages]';
 const ARTIFACT_CHANNEL_NAME = 'terminal-artifacts';
-const ARTIFACT_CHANNEL_TOPIC = 'PowerShell Discord Bridge watched file uploads.';
+const ARTIFACT_CHANNEL_TOPIC = 'multicli-discord-bridge watched file uploads.';
 const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
 const TEXT_COMMAND_MIN_CHARS = 1;
@@ -1813,7 +1813,7 @@ function normalizeWorkspaceChannelName(value: string): string {
 }
 
 function buildWorkspaceChannelTopic(slotId: TerminalSlotId, workspaceName: string, cwd: string): string {
-  return `PowerShell Discord Bridge slot ${slotId}: "${workspaceName}" (${cwd})`;
+  return `multicli-discord-bridge slot ${slotId}: "${workspaceName}" (${cwd})`;
 }
 
 function buildArtifactPublishErrorMessage(
