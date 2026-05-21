@@ -5,12 +5,12 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSCommandPath
-$launcherPath = Join-Path $repoRoot 'launch-multicli-discord-bridge.cmd'
-$hiddenLauncherPath = Join-Path $repoRoot 'launch-multicli-discord-bridge-hidden.vbs'
+$launcherPath = Join-Path $repoRoot 'launch-multicli-discord-bridge.ps1'
 $splashScriptPath = Join-Path $repoRoot 'launch-multicli-discord-bridge-splash.ps1'
+$launcherHostPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $iconPath = Join-Path $repoRoot 'assets\app-icon.ico'
 
-foreach ($requiredPath in @($launcherPath, $hiddenLauncherPath, $splashScriptPath, $iconPath)) {
+foreach ($requiredPath in @($launcherPath, $splashScriptPath, $launcherHostPath, $iconPath)) {
   if (-not (Test-Path $requiredPath)) {
     throw "Required file not found: $requiredPath"
   }
@@ -35,10 +35,11 @@ foreach ($legacyShortcutName in $legacyShortcutNames) {
 }
 
 $shortcut = $shell.CreateShortcut($desktopShortcutPath)
-$shortcut.TargetPath = $hiddenLauncherPath
+$shortcut.TargetPath = $launcherHostPath
+$shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPath`""
 $shortcut.WorkingDirectory = $repoRoot
 $shortcut.IconLocation = "$iconPath,0"
-$shortcut.Description = 'Launch multicli-discord-bridge with startup status and no console window'
+$shortcut.Description = 'Launch multicli-discord-bridge with startup splash and no console window'
 $shortcut.Save()
 
 if (Test-Path $startupShortcutPath) {

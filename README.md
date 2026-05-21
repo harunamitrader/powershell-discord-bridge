@@ -149,7 +149,7 @@ ALLOW_GUILD_ID=ここに対象guildのID
 一番簡単なのは、プロジェクト直下の次のファイルを実行する方法です。
 
 ```powershell
-.\launch-multicli-discord-bridge.cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\launch-multicli-discord-bridge.ps1
 ```
 
 この起動スクリプトは、必要なら自動で次を行います。`dist\renderer` だけでなく `dist-electron` も見て、**成果物が足りない場合やソース更新後に build が古い場合は build をやり直します。**
@@ -169,7 +169,7 @@ npm start
 - **PowerShell 7 以上**なら `npm install && npm run build && npm start` のように連結してもかまいません
 - **Windows PowerShell 5.1** など `&&` 非対応の環境では、上のように**1 行ずつ実行**してください（`;` でつなぐこともできます）
 - build 後に最低限できる成果物は `dist\renderer\index.html`、`dist-electron\main\index.js`、`dist-electron\preload\index.js` です
-- エージェント実行やトラブルシュートでは、`launch-multicli-discord-bridge.cmd` の一括起動よりも、この 3 コマンドを順に実行した方が失敗箇所を切り分けやすいです
+- エージェント実行やトラブルシュートでは、`launch-multicli-discord-bridge.ps1` の一括起動よりも、この 3 コマンドを順に実行した方が失敗箇所を切り分けやすいです
 
 ### デスクトップショートカットを作る
 
@@ -185,7 +185,7 @@ npm start
 npm run setup:shortcuts
 ```
 
-このショートカットは `assets\app-icon.ico` を使い、**通常はコンソールを見せない hidden launcher** 経由でアプリを起動します。起動直後は、Electron ウィンドウが出るまでの間だけ小さな起動メッセージウィンドウを表示します。`launch-multicli-discord-bridge.cmd` はそのまま残るので、デバッグしたいときだけ手動実行できます。**スタートアップには登録しません。** 以前の設定で同名のスタートアップショートカットが残っている場合は、このセットアップ実行時に削除します。
+このショートカットは `assets\app-icon.ico` を使い、**親コンソールを出さない 1 本の PowerShell launcher** でアプリを起動します。起動直後は、Electron ウィンドウが出るまでの間だけ小さな起動メッセージウィンドウを表示します。デバッグしたいときは `launch-multicli-discord-bridge.ps1` を手動実行できます。**スタートアップには登録しません。** 以前の設定で同名のスタートアップショートカットが残っている場合は、このセットアップ実行時に削除します。
 
 初回導入で問題が出た場合は、まず **`npm install` → `npm run build` → `npm start` を個別実行**して、どの段階で失敗するかを確認するのがおすすめです。
 

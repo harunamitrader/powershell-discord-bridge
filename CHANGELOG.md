@@ -33,7 +33,7 @@
 - fallback 返信使用時の `[reply fallback used]` マーカー
 - terminal slot 再起動とアプリ再起動の Discord コマンド
 - アプリ内で main process ログと terminal 入力ログを確認できる Logs オーバーレイ
-- デスクトップショートカット向けの hidden launcher
+- デスクトップショートカット向けの単一 PowerShell launcher
 - デスクトップショートカット起動中に出す一時的な起動メッセージウィンドウ
 - Cron ジョブ管理用の `bridge-cron-tui` を repo 同梱サブディレクトリとして追加
 
@@ -60,7 +60,7 @@
 - グローバルの default working directory 設定を廃止
 - 各 terminal の working directory 表記を `Default working directory` に変更
 - 初期設定を `auto screenshot ON`、`code block`、`soft timeout 300s`、`hard timeout unlimited`、`100x50` に変更
-- デスクトップショートカットは通常起動時に親コンソールを表示しない hidden launcher を使うよう変更
+- デスクトップショートカットは親コンソールを表示しない単一 PowerShell launcher を使うよう変更
 - Discord 添付ファイルを terminal に渡すコメントブロックは、manifest や count を含めずファイルパスのみの簡略形式に変更
 - bridge rows の最小値を `15` に変更
 

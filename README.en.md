@@ -149,7 +149,7 @@ ALLOW_GUILD_ID=put-your-target-guild-id-here
 The simplest way is to run this file from the project root:
 
 ```powershell
-.\launch-multicli-discord-bridge.cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\launch-multicli-discord-bridge.ps1
 ```
 
 This launcher automatically does the following if needed. It checks both `dist\renderer` and `dist-electron`, and rebuilds when outputs are missing or stale after source changes.
@@ -169,7 +169,7 @@ npm start
 - On **PowerShell 7 or later**, it is fine to chain them as `npm install && npm run build && npm start`
 - On **Windows PowerShell 5.1** and other shells that do not support `&&`, run them **one line at a time** as shown above (or use `;`)
 - After a successful build, the minimum expected outputs are `dist\renderer\index.html`, `dist-electron\main\index.js`, and `dist-electron\preload\index.js`
-- For agent-driven setup or troubleshooting, these three manual commands are easier to debug than the one-shot `launch-multicli-discord-bridge.cmd`
+- For agent-driven setup or troubleshooting, these three manual commands are easier to debug than the one-shot `launch-multicli-discord-bridge.ps1`
 
 ### Create desktop shortcuts
 
@@ -185,7 +185,7 @@ You can also do the same through npm:
 npm run setup:shortcuts
 ```
 
-The shortcut uses `assets\app-icon.ico` and starts the app through the hidden launcher so the normal console stays hidden. Right after launch, it shows a small startup message window only until the Electron window appears. `launch-multicli-discord-bridge.cmd` remains available for manual debugging. **It does not register itself in Startup.** If an older shortcut with the same name is still left in Startup, this setup removes it.
+The shortcut uses `assets\app-icon.ico` and starts the app through a **single PowerShell launcher that keeps the parent console hidden**. Right after launch, it shows a small startup message window only until the Electron window appears. You can still run `launch-multicli-discord-bridge.ps1` manually for debugging. **It does not register itself in Startup.** If an older shortcut with the same name is still left in Startup, this setup removes it.
 
 If first-time setup fails, prefer running **`npm install` → `npm run build` → `npm start` separately** so you can see exactly which step failed.
 
