@@ -373,22 +373,38 @@ While the bridge is running, the built-in cron daemon watches the **repository-l
 
 Use the bundled TUI to add, edit, delete, and toggle jobs:
 
+#### Run it from inside the repository
+
 ```powershell
 npm run cron:tui:install   # first time only
 npm run cron:tui:start
 ```
 
-If you want to launch the cron TUI from **any directory** with `mcron`, run this once first:
+#### Install `mcron`
+
+If you want to launch the cron TUI from **any directory** with `mcron`, run this once from this repository:
 
 ```powershell
+npm install
+npm run cron:tui:install
 npm run setup:commands
 ```
 
 That registers `mcron` as a global command pointing at this clone:
 
+#### Use `mcron`
+
 ```powershell
 mcron
 ```
+
+After launch, the cron job list opens and you can control it with:
+
+- `A`: add
+- `E`: edit
+- `D`: delete
+- `Space`: toggle ON / OFF
+- `Q`: quit
 
 Other OSS users who clone the repository can enable the same workflow with **clone the repo → `npm install` → `npm run cron:tui:install` → `npm run setup:commands`**. This uses `npm link`, so if the repository is moved to a different path, they should run `npm run setup:commands` again from the new location.
 
