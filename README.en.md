@@ -14,15 +14,10 @@ You can watch six slots at once, send instructions to each slot from Discord, an
 > This tool **runs local terminals / CLIs on your own PC**.  
 > In other words, anything sent by approved Discord users becomes an operation against your PC. This is not a general-purpose bot for public servers. Treat it as a **local orchestration tool for personal or small-team use**.
 
-## multicli-discord-bridge in one page
-
-![multicli-discord-bridge one-page overview](docs/images/readme-overview-en.png)
-
-## Showcase visuals
+## Visual overview
 
 <p align="center">
   <img src="docs/images/readme-showcase-01.png" alt="multicli-discord-bridge showcase visual 1" width="420" />
-  <img src="docs/images/readme-showcase-02.png" alt="multicli-discord-bridge showcase visual 2" width="420" />
 </p>
 
 ## Screenshots
@@ -30,10 +25,6 @@ You can watch six slots at once, send instructions to each slot from Discord, an
 ### UI overview
 
 <img src="docs/images/readme-screenshot-01.png" alt="multicli-discord-bridge UI overview screenshot" width="760" />
-
-### App window
-
-![multicli-discord-bridge app window](docs/images/app-window.png)
 
 ### Example Discord response
 
