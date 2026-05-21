@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, watch, type FSWatcher } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import chokidar, { type FSWatcher } from 'chokidar';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSlotService } from '../app/terminalSlotService';
 import { DiscordBridgeService } from './discordBridgeService';
@@ -57,23 +58,37 @@ export class ArtifactPublishService {
 
     mkdirSync(watchDirectory, { recursive: true });
     this.watchRoot = watchDirectory;
-    this.watcher = watch(watchDirectory, { recursive: true }, (_eventType, filename) => {
-      this.queueCandidate(filename);
+    this.seedPublishedSignatures(watchDirectory);
+    this.watcher = chokidar.watch(watchDirectory, {
+      ignoreInitial: true,
+      awaitWriteFinish: {
+        stabilityThreshold: FILE_STABILITY_WAIT_MS,
+        pollInterval: 100
+      }
+    });
+    this.watcher.on('add', (filePath) => {
+      this.queueCandidate(filePath);
+    });
+    this.watcher.on('change', (filePath) => {
+      this.queueCandidate(filePath);
+    });
+    this.watcher.on('unlink', (filePath) => {
+      this.clearPublishedSignature(filePath);
     });
     console.info(`Watching artifact publish folder: ${watchDirectory}`);
   }
 
-  private queueCandidate(filename: string | Buffer | null, delayMs = WATCH_DEBOUNCE_MS): void {
-    if (!this.watchRoot || !filename) {
+  private queueCandidate(candidatePath: string | null, delayMs = WATCH_DEBOUNCE_MS): void {
+    if (!this.watchRoot || !candidatePath) {
       return;
     }
 
-    const relativePath = typeof filename === 'string' ? filename : filename.toString('utf8');
-    if (!relativePath.trim()) {
+    const normalizedPath = candidatePath.trim();
+    if (!normalizedPath) {
       return;
     }
 
-    const fullPath = path.resolve(this.watchRoot, relativePath);
+    const fullPath = path.isAbsolute(normalizedPath) ? path.resolve(normalizedPath) : path.resolve(this.watchRoot, normalizedPath);
     if (!isDescendantPath(fullPath, this.watchRoot)) {
       return;
     }
@@ -91,6 +106,54 @@ export class ArtifactPublishService {
       });
     }, delayMs);
     this.pendingTimers.set(dedupeKey, timer);
+  }
+
+  private clearPublishedSignature(candidatePath: string): void {
+    if (!this.watchRoot) {
+      return;
+    }
+
+    const fullPath = path.isAbsolute(candidatePath) ? path.resolve(candidatePath) : path.resolve(this.watchRoot, candidatePath);
+    if (!isDescendantPath(fullPath, this.watchRoot)) {
+      return;
+    }
+
+    const dedupeKey = fullPath.toLowerCase();
+    const existingTimer = this.pendingTimers.get(dedupeKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.pendingTimers.delete(dedupeKey);
+    }
+    this.publishedSignatures.delete(dedupeKey);
+  }
+
+  private seedPublishedSignatures(rootPath: string): void {
+    for (const fullPath of listArtifactFiles(rootPath)) {
+      if (shouldIgnoreArtifactPath(fullPath)) {
+        continue;
+      }
+
+      try {
+        const fileInfo = statSync(fullPath);
+        if (!fileInfo.isFile() || fileInfo.size <= 0) {
+          continue;
+        }
+
+        const dedupeKey = fullPath.toLowerCase();
+        if (fileInfo.size > MAX_ARTIFACT_FILE_BYTES) {
+          this.publishedSignatures.set(dedupeKey, `oversize:${fileInfo.size}:${fileInfo.mtimeMs}`);
+          continue;
+        }
+
+        const signature = createHash('sha256').update(readFileSync(fullPath)).digest('hex');
+        this.publishedSignatures.set(dedupeKey, signature);
+      } catch (error) {
+        if (isMissingFileError(error) || isTransientFileError(error)) {
+          continue;
+        }
+        console.warn(`Artifact publish baseline skipped for ${fullPath}`, error);
+      }
+    }
   }
 
   private async processCandidate(fullPath: string): Promise<void> {
@@ -240,6 +303,39 @@ function looksLikeDiscordFileTooLargeError(error: unknown): boolean {
   }
 
   return /file.+too large|request entity too large|payload too large|maximum.+file size/i.test(error.message);
+}
+
+function listArtifactFiles(rootPath: string): string[] {
+  const files: string[] = [];
+  const stack = [rootPath];
+
+  while (stack.length > 0) {
+    const currentPath = stack.pop();
+    if (!currentPath) {
+      continue;
+    }
+
+    let entries: Dirent<string>[];
+    try {
+      entries = readdirSync(currentPath, { withFileTypes: true, encoding: 'utf8' });
+    } catch (error) {
+      if (isMissingFileError(error) || isTransientFileError(error)) {
+        continue;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(entryPath);
+      } else if (entry.isFile()) {
+        files.push(entryPath);
+      }
+    }
+  }
+
+  return files;
 }
 
 function wait(durationMs: number): Promise<void> {
