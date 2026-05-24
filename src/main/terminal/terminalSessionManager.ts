@@ -40,6 +40,8 @@ interface SessionEvents {
   'session-data': { sessionId: string; data: string };
   'session-exit': { sessionId: string; exitCode: number };
   'session-updated': TerminalSessionSummary;
+  'session-write': { sessionId: string; data: string; source: TerminalWriteSource; occurredAt: string };
+  'session-prompt-ready': { sessionId: string; occurredAt: string };
 }
 
 const DEFAULT_COLUMNS = 120;
@@ -147,6 +149,7 @@ export class TerminalSessionManager extends EventEmitter {
       const parsed = record.parser.parse(data);
       if (parsed.promptReady) {
         record.lastPromptReadyAt = occurredAt;
+        this.emit('session-prompt-ready', { sessionId, occurredAt });
       }
 
       if (parsed.cwd && parsed.cwd !== record.summary.cwd) {
@@ -183,6 +186,12 @@ export class TerminalSessionManager extends EventEmitter {
 
     enforceLocalWritePolicy(session.summary, request.source ?? 'local');
     this.logWrite(session.summary, request.data, request.source ?? 'local');
+    this.emit('session-write', {
+      sessionId: request.sessionId,
+      data: request.data,
+      source: request.source ?? 'local',
+      occurredAt: new Date().toISOString()
+    });
     session.pty.write(request.data);
   }
 

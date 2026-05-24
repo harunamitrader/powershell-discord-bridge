@@ -117,7 +117,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + from + text + optional Enter` request shape through a local-only automation endpoint, activating the target slot in the app before sending and automatically prepending a `[from: ...]` header
 - Those sends now return a lightweight **delivery likelihood check** with `likely_delivered`, `uncertain`, or `likely_not_delivered`
 - Those sends can also opt into a sender-slot task-complete callback with `notifyOnComplete`, but the default stays **off**, including skill-driven sends
-- Only when requested by the user, local automation can also fetch visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
+- Only when requested by the user, local automation can also fetch coordination slot-state JSON, visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
 
 ## 6. Safety-related behavior
 

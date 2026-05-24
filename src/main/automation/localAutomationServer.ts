@@ -4,6 +4,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import type {
+  TerminalSlotInboundKind,
+  TerminalSlotState,
+  TerminalSlotStateSnapshot,
   TerminalSessionActivatedEvent,
   TerminalSessionSnapshot,
   TerminalSessionState,
@@ -14,6 +17,7 @@ import { AppLogStore } from '../app/appLogStore';
 import { ensureMainWindowReadyForTerminalInput } from '../app/ensureMainWindowReadyForTerminalInput';
 import { PreferencesStore } from '../app/preferencesStore';
 import { TerminalSlotService } from '../app/terminalSlotService';
+import { SlotStateStore } from '../app/slotStateStore';
 import { formatInterSlotMessage, normalizeInterSlotFromLabel } from './interSlotMessage';
 import { TerminalAutomationService } from '../bridge/terminalAutomationService';
 import { buildTerminalScreenshotFilename, captureTerminalScreenshotPng } from '../bridge/terminalScreenshotCapture';
@@ -55,11 +59,17 @@ interface LocalAutomationObserveWindowScreenshotRequest {
   kind: 'observe-window-screenshot';
 }
 
+interface LocalAutomationObserveSlotStateRequest {
+  kind: 'observe-slot-state';
+  slot?: TerminalSlotId;
+}
+
 type LocalAutomationRequest =
   | LocalAutomationSendTextRequest
   | LocalAutomationObserveSlotTextRequest
   | LocalAutomationObserveSlotScreenshotRequest
-  | LocalAutomationObserveWindowScreenshotRequest;
+  | LocalAutomationObserveWindowScreenshotRequest
+  | LocalAutomationObserveSlotStateRequest;
 
 interface LocalAutomationDeliveryCheck {
   verdict: 'likely_delivered' | 'uncertain' | 'likely_not_delivered';
@@ -142,6 +152,15 @@ interface LocalAutomationScreenshotResponse {
   filePath: string;
 }
 
+interface LocalAutomationObserveSlotStateResponse {
+  ok: true;
+  kind: 'observe-slot-state';
+  capturedAt: string;
+  filePath: string;
+  snapshot: TerminalSlotStateSnapshot;
+  slotState?: TerminalSlotState;
+}
+
 interface LocalAutomationErrorResponse {
   ok: false;
   error: string;
@@ -151,6 +170,7 @@ type LocalAutomationResponse =
   | LocalAutomationSendTextResponse
   | LocalAutomationObserveSlotTextResponse
   | LocalAutomationScreenshotResponse
+  | LocalAutomationObserveSlotStateResponse
   | LocalAutomationErrorResponse;
 
 export class LocalAutomationServer {
@@ -163,7 +183,8 @@ export class LocalAutomationServer {
     private readonly terminalSessionManager: TerminalSessionManager,
     private readonly preferencesStore: PreferencesStore,
     private readonly getMainWindow: () => BrowserWindow | undefined,
-    private readonly appLogStore?: AppLogStore
+    private readonly appLogStore?: AppLogStore,
+    private readonly slotStateStore?: SlotStateStore
   ) {}
 
   start(): void {
@@ -250,6 +271,8 @@ export class LocalAutomationServer {
           return await this.handleObserveSlotScreenshot(request);
         case 'observe-window-screenshot':
           return await this.handleObserveWindowScreenshot();
+        case 'observe-slot-state':
+          return await this.handleObserveSlotState(request);
       }
     } catch (error) {
       const message = formatError(error);
@@ -266,6 +289,12 @@ export class LocalAutomationServer {
     const source: TerminalWriteSource = 'automation';
     const acceptedAt = new Date().toISOString();
     const deliveredText = formatInterSlotMessage(request.from, request.text);
+    this.slotStateStore?.recordInbound(request.slot, {
+      timestamp: acceptedAt,
+      from: request.from,
+      kind: mapInterSlotInboundKind(request.from),
+      text: request.text
+    });
     await this.activateSessionForInput(session.id);
     const beforeSnapshot = await this.terminalSessionManager.getBufferSnapshot(session.id, 'manual');
     const beforeState = await this.terminalSessionManager.getSessionState(session.id);
@@ -443,6 +472,27 @@ export class LocalAutomationServer {
     };
   }
 
+  private async handleObserveSlotState(
+    request: LocalAutomationObserveSlotStateRequest
+  ): Promise<LocalAutomationObserveSlotStateResponse> {
+    if (!this.slotStateStore) {
+      throw new Error('Slot state store is not available.');
+    }
+
+    const capturedAt = new Date().toISOString();
+    const snapshot = this.slotStateStore.getSnapshot(request.slot);
+    const slotState = typeof request.slot === 'number' ? snapshot.slots[0] : undefined;
+    this.log(`accepted kind=observe-slot-state slot=${request.slot ?? 'all'} file=${JSON.stringify(this.slotStateStore.getFilePath())}`);
+    return {
+      ok: true,
+      kind: 'observe-slot-state',
+      capturedAt,
+      filePath: this.slotStateStore.getFilePath(),
+      snapshot,
+      slotState
+    };
+  }
+
   private async performDeliveryCheck(
     sessionId: string,
     submittedText: string,
@@ -584,6 +634,8 @@ function parseRequest(payload: string): LocalAutomationRequest {
       return parseObserveSlotScreenshotRequest(parsed);
     case 'observe-window-screenshot':
       return { kind: 'observe-window-screenshot' };
+    case 'observe-slot-state':
+      return parseObserveSlotStateRequest(parsed);
     default:
       throw new Error('Unsupported local automation request kind.');
   }
@@ -652,6 +704,13 @@ function parseObserveSlotScreenshotRequest(parsed: Record<string, unknown>): Loc
   };
 }
 
+function parseObserveSlotStateRequest(parsed: Record<string, unknown>): LocalAutomationObserveSlotStateRequest {
+  return {
+    kind: 'observe-slot-state',
+    slot: parseOptionalSlot(parsed.slot, 'slot')
+  };
+}
+
 function parseSlot(value: unknown): TerminalSlotId {
   if (value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6) {
     return value;
@@ -696,6 +755,26 @@ function ensureOptionalNumber(value: unknown, fieldName: string): void {
   if (typeof value !== 'undefined' && typeof value !== 'number') {
     throw new Error(`${fieldName} must be a number when provided.`);
   }
+}
+
+function mapInterSlotInboundKind(fromLabel: string): TerminalSlotInboundKind {
+  if (/^slot[1-6]$/.test(fromLabel)) {
+    return 'slot';
+  }
+
+  if (fromLabel === 'human') {
+    return 'human';
+  }
+
+  if (fromLabel === 'cron') {
+    return 'cron';
+  }
+
+  if (fromLabel.startsWith('external:')) {
+    return 'external';
+  }
+
+  return 'local';
 }
 
 function sanitizePositiveInteger(value: number | undefined, fallback: number): number {

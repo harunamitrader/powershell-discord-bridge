@@ -233,6 +233,33 @@ export interface TerminalSessionState extends TerminalDimensions {
   lastPromptReadyAt?: string;
 }
 
+export type TerminalSlotForegroundStatus = 'starting' | 'powershell-ready' | 'command-active' | 'exited';
+
+export type TerminalSlotInboundKind = 'discord' | 'slot' | 'human' | 'cron' | 'external' | 'local';
+
+export interface TerminalSlotInboundEntry {
+  timestamp: string;
+  from: string;
+  kind: TerminalSlotInboundKind;
+  text: string;
+}
+
+export interface TerminalSlotState {
+  slotId: TerminalSlotId;
+  sessionId?: string;
+  cwd?: string;
+  status: TerminalSlotForegroundStatus;
+  updatedAt: string;
+  foregroundCommand?: string;
+  recentInbound: TerminalSlotInboundEntry[];
+}
+
+export interface TerminalSlotStateSnapshot {
+  schemaVersion: 1;
+  generatedAt: string;
+  slots: TerminalSlotState[];
+}
+
 export interface TerminalSendInputRequest {
   sessionId: string;
   content: string;

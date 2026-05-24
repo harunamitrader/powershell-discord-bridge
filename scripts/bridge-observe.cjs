@@ -26,6 +26,7 @@ function parseArgs(argv) {
   const options = {
     slot: undefined,
     text: false,
+    state: false,
     screenshot: false,
     windowScreenshot: false,
     maxChars: undefined,
@@ -41,6 +42,9 @@ function parseArgs(argv) {
         break;
       case '--text':
         options.text = true;
+        break;
+      case '--state':
+        options.state = true;
         break;
       case '--screenshot':
         options.screenshot = true;
@@ -70,6 +74,17 @@ function buildRequest(options) {
     return { kind: 'observe-window-screenshot' };
   }
 
+  if (options.state) {
+    if (options.text || options.screenshot || options.windowScreenshot) {
+      throw new Error('Use --state by itself or with only --slot.');
+    }
+
+    return {
+      kind: 'observe-slot-state',
+      slot: typeof options.slot === 'string' ? normalizeSlot(options.slot) : undefined
+    };
+  }
+
   const slot = normalizeSlot(options.slot);
 
   if (options.text === options.screenshot) {
@@ -91,7 +106,7 @@ function buildRequest(options) {
 }
 
 function ensureExclusive(options, selectedMode) {
-  const flags = [options.text, options.screenshot, options.windowScreenshot].filter(Boolean).length;
+  const flags = [options.text, options.state, options.screenshot, options.windowScreenshot].filter(Boolean).length;
   if (flags !== 1) {
     throw new Error(`Use ${selectedMode} by itself.`);
   }
@@ -216,11 +231,14 @@ function printHelp() {
     [
       'Usage:',
       '  node scripts\\bridge-observe.cjs --slot slot3 --text',
+      '  node scripts\\bridge-observe.cjs --state',
+      '  node scripts\\bridge-observe.cjs --slot slot3 --state',
       '  node scripts\\bridge-observe.cjs --slot slot3 --screenshot',
       '  node scripts\\bridge-observe.cjs --window-screenshot',
       '',
       'Options:',
       '  --slot <slot>          Required for --text and --screenshot (1-6 or slot1-slot6)',
+      '  --state                Return coordination slot state as JSON (optionally filter by --slot)',
       '  --text                 Return visible slot text as JSON',
       '  --screenshot           Capture a slot screenshot and return the saved file path as JSON',
       '  --window-screenshot    Capture the whole app window and return the saved file path as JSON',

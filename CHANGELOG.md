@@ -6,6 +6,9 @@
 
 ### Added
 
+- 連携時だけ読む shared state として、各 slot の `cwd` / `status` / `updatedAt` / `foregroundCommand` / `recentInbound` を `%APPDATA%\multicli-discord-bridge\coordination\slot-state.json` に記録する仕組み
+- `slot:observe -- --state` と `slot:observe -- --slot slotN --state` による coordination state 読み取り
+- Copilot 用の `multicli-discord-bridge-slot-state` skill テンプレート
 - 6固定 slot を 1 ウィンドウ内で表示し、右側に slot5 / slot6 用の半幅列を追加
 - `slot:send` / cron 送信に、`[from: ...]` ヘッダー付きの送信元ラベルを付ける仕組み
 - `!rst` / `!rsa` / `!ss` / `!wss` の省略コマンド
@@ -40,6 +43,7 @@
 
 ### Changed
 
+- `multicli-discord-bridge-slot-send` skill は送信専用とし、連携判断が必要な場合は別の state skill を先に使う前提に整理
 - ローカル UI の pane / settings 表記を `P1` 形式から `slot1` 形式へ変更
 - ローカル AI / shell、skill、cron の slot 対応範囲を `slot1-slot6` に拡張
 - `slot:send` の `--from` を必須化し、skill では本文冒頭の短い名乗りと sender slot 確認ルールを使うよう変更

@@ -1,7 +1,18 @@
 import { app, type BrowserWindow } from 'electron';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { AttachmentBuilder, ChannelType, Client, GatewayIntentBits, type Attachment, type Guild, type Message, type TextChannel } from 'discord.js';
+import {
+  AttachmentBuilder,
+  ChannelType,
+  Client,
+  GatewayIntentBits,
+  OverwriteType,
+  PermissionFlagsBits,
+  type Attachment,
+  type Guild,
+  type Message,
+  type TextChannel
+} from 'discord.js';
 import type {
   TerminalSessionActivatedEvent,
   TerminalAutomationTurnResult,
@@ -32,6 +43,7 @@ import { buildWindowScreenshotFilename, captureWindowScreenshotPng } from './win
 import { buildTerminalScreenshotFilename, captureTerminalScreenshotPng } from './terminalScreenshotCapture';
 import { TerminalSessionManager } from '../terminal/terminalSessionManager';
 import { TerminalSlotService } from '../app/terminalSlotService';
+import { SlotStateStore } from '../app/slotStateStore';
 import {
   DiscordAttachmentService,
   type DiscordAttachmentInput,
@@ -190,7 +202,8 @@ export class DiscordBridgeService {
     private readonly terminalSlotService: TerminalSlotService,
     private readonly config: BridgeRuntimeConfig,
     private readonly getMainWindow: () => BrowserWindow | undefined,
-    private readonly preferencesStore: PreferencesStore
+    private readonly preferencesStore: PreferencesStore,
+    private readonly slotStateStore?: SlotStateStore
   ) {
     this.replyFormatter = new DiscordReplyFormatter(config.reply);
     this.attachmentService = new DiscordAttachmentService(config, preferencesStore);
@@ -429,6 +442,15 @@ export class DiscordBridgeService {
       await this.tryAddReaction(message, REACTION_REJECTED);
       await this.sendReplies(message, this.formatReplyText(parsed.message));
       return;
+    }
+
+    if (parsed.kind === 'text' && parsed.content.trim().length > 0) {
+      this.slotStateStore?.recordInbound(slot.slotId, {
+        timestamp: message.createdAt.toISOString(),
+        from: `discord:${message.author.id}`,
+        kind: 'discord',
+        text: parsed.content
+      });
     }
 
     const binding = this.channelSessionRegistry.getBinding(message.channelId);
@@ -1304,10 +1326,16 @@ export class DiscordBridgeService {
       return undefined;
     }
 
+    const botUserId = this.client?.user?.id;
+    if (!botUserId) {
+      throw new Error('Discord bot user is not ready for channel creation.');
+    }
+
     return guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      topic
+      topic,
+      permissionOverwrites: buildAutoCreatedChannelPermissionOverwrites(guild, botUserId, this.config.allowUserIds)
     });
   }
 
@@ -1804,6 +1832,34 @@ function normalizeWorkspaceChannelName(value: string): string {
 
 function buildWorkspaceChannelTopic(slotId: TerminalSlotId, workspaceName: string, cwd: string): string {
   return `multicli-discord-bridge slot ${slotId}: "${workspaceName}" (${cwd})`;
+}
+
+function buildAutoCreatedChannelPermissionOverwrites(guild: Guild, botUserId: string, allowUserIds: string[]) {
+  const allowPermissions = [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions
+  ];
+
+  return [
+    {
+      id: guild.roles.everyone.id,
+      type: OverwriteType.Role,
+      deny: [PermissionFlagsBits.ViewChannel]
+    },
+    {
+      id: botUserId,
+      type: OverwriteType.Member,
+      allow: [...allowPermissions, PermissionFlagsBits.ManageChannels]
+    },
+    ...[...new Set(allowUserIds)].map((userId) => ({
+      id: userId,
+      type: OverwriteType.Member,
+      allow: allowPermissions
+    }))
+  ];
 }
 
 function buildArtifactPublishErrorMessage(

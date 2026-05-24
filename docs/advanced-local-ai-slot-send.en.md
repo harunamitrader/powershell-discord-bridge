@@ -100,7 +100,23 @@ PNG files are saved under `%APPDATA%\multicli-discord-bridge\automation-captures
 npm run slot:observe -- --window-screenshot
 ```
 
-If the AI needs to understand other slots, it can simply fetch each slot's visible text one slot at a time. A dedicated summary feature is not required.
+### Read the coordination slot-state JSON
+
+This is intended only for **handoff, report, or cross-slot coordination moments**, not for every normal turn.
+
+```powershell
+npm run slot:observe -- --state
+npm run slot:observe -- --slot slot3 --state
+```
+
+- The response includes both the snapshot and its saved `filePath`
+- The JSON is written to `%APPDATA%\multicli-discord-bridge\coordination\slot-state.json`
+- Each slot includes `cwd`, `status`, `updatedAt`, `foregroundCommand`, and `recentInbound`
+- `foregroundCommand` records only the **first Enter-submitted command after the last `promptReady`**
+- `recentInbound` keeps only the latest 5 text inputs
+- No semantic runtime inference is performed for tool names such as `claude` or `gemini`
+
+If the AI needs to understand other slots, first read `--state`, then fetch per-slot visible text only when that lightweight shared state is not enough.
 
 ## Using it through a skill
 
@@ -115,16 +131,29 @@ That keeps `AGENTS.md` clean while still letting an AI follow requests such as â
 C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-send
 ```
 
-2. Copy this template from the repo into that folder as `SKILL.md`:
+2. For the text-send skill, copy this template from the repo into that folder as `SKILL.md`:
 
 ```text
 docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md
 ```
 
-3. Then ask Copilot in natural language:
+3. If you also want natural-language slot state checks, create this additional folder:
+
+```text
+C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-state
+```
+
+4. Copy this second template into that folder as `SKILL.md`:
+
+```text
+docs\skill-examples\multicli-discord-bridge-slot-state\SKILL.md
+```
+
+5. Then ask Copilot in natural language:
 
 - `Send "Review this diff" to slot3`
 - `Send "draft only" to slot4 without Enter`
+- `Check the current state of all multiCLI slots`
 
 Internally, the skill calls:
 
@@ -142,10 +171,14 @@ npm run slot:send -- --slot slot3 --from slot2 --text "This is Copilot in slot2.
 Only when needed, it can also call:
 
 ```powershell
+npm run slot:observe -- --state
 npm run slot:observe -- --slot slot3 --text
 npm run slot:observe -- --slot slot3 --screenshot
 npm run slot:observe -- --window-screenshot
 ```
+
+- Keep the send skill focused on sending only; for coordination decisions such as handoff, report, or target-slot selection, use the separate `multicli-discord-bridge-slot-state` skill first
+- The state skill should normally use `npm run slot:observe -- --state`, and only narrow to `--slot slotN --state` when one slot is enough
 
 - When a skill sends an inter-slot request, keep the CLI-added `[from: ...]` header and also begin the body with a short self-introduction such as `This is Copilot in slot2.`
 - If the sender slot is unknown, ask the human first

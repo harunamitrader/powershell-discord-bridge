@@ -61,6 +61,8 @@ node .\scripts\bridge-send-slot.cjs --slot slot3 --from slot2 --text "This is Co
 
 ## Optional inspection commands
 
+If the task is a **coordination flow** such as handoff, report, target-slot selection, or cross-slot status confirmation, use the separate **`multicli-discord-bridge-slot-state`** skill first.
+
 If the user explicitly asks what is visible in a slot, use:
 
 ```powershell
@@ -90,3 +92,4 @@ For checking other slots, call `slot:observe -- --slot ... --text` per slot and 
 5. If the CLI says the Electron app is not running, report that plainly.
 6. Do not inspect screenshots unless the user explicitly asks; when inspection is needed for sender identification, prefer visible text first.
 7. Do NOT enable completion callbacks by default. Use them only when clearly needed.
+8. If coordination judgment is needed before sending, use the separate `multicli-discord-bridge-slot-state` skill first instead of expanding this skill's scope.

@@ -105,7 +105,7 @@ At minimum, the bot needs these permissions:
 - **Add Reactions**
 - **Manage Channels** (if you want automatic channel creation, renaming, or topic updates)
 
-This app can **auto-create, reuse, and rename** the slot channels and the shared artifact channel `terminal-artifacts`.
+This app can **auto-create, reuse, and rename** the slot channels and the shared artifact channel `terminal-artifacts`. Auto-created channels default to permission overwrites that make them visible only to the allowed users and the bot.
 If you use that behavior, **Manage Channels** is required. If you create the channels yourself and set the channel IDs manually, you can avoid granting that permission.
 
 ### 3. Enable copying IDs in Discord
@@ -236,6 +236,16 @@ npm run slot:send -- --slot slot3 --from human --text "Review this diff"
 - The command fails clearly when the Electron app is not running
 
 For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md`.
+
+For coordination-only reads, you can also use:
+
+```powershell
+npm run slot:observe -- --state
+```
+
+This reads `%APPDATA%\multicli-discord-bridge\coordination\slot-state.json`, which contains each slot's `cwd`, `status`, `updatedAt`, `foregroundCommand`, and `recentInbound`. `foregroundCommand` records only the **first Enter-submitted command after the last `promptReady`**.
+
+If you want to trigger that state check from natural language, use the separate Copilot template at `docs\skill-examples\multicli-discord-bridge-slot-state\SKILL.md`.
 
 ```powershell
 @'

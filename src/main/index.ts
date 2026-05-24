@@ -12,6 +12,7 @@ import { TerminalAutomationService } from './bridge/terminalAutomationService';
 import { PreferencesStore } from './app/preferencesStore';
 import { dismissStartupSplash } from './app/startupSplashSignal';
 import { TerminalSlotService } from './app/terminalSlotService';
+import { SlotStateStore } from './app/slotStateStore';
 import { LocalAutomationServer } from './automation/localAutomationServer';
 import { CronJobScheduler } from './cron/cronJobScheduler';
 import { registerIpc } from './ipc/registerIpc';
@@ -37,6 +38,7 @@ async function bootstrap(): Promise<void> {
   const preferencesStore = new PreferencesStore();
   terminalSessionManager = new TerminalSessionManager(preferencesStore, appLogStore);
   const terminalSlotService = new TerminalSlotService(preferencesStore, terminalSessionManager);
+  const slotStateStore = new SlotStateStore(terminalSlotService);
   const bridgeRuntimeConfig = loadBridgeRuntimeConfig();
   if (bridgeRuntimeConfig.allowUserIds.length === 0) {
     console.warn('ALLOW_USER_IDS is empty. Discord commands are blocked until at least one allowed user ID is configured.');
@@ -53,7 +55,8 @@ async function bootstrap(): Promise<void> {
     terminalSlotService,
     bridgeRuntimeConfig,
     () => mainWindow,
-    preferencesStore
+    preferencesStore,
+    slotStateStore
   );
   artifactPublishService = new ArtifactPublishService(preferencesStore, terminalSlotService, discordBridgeService);
   const localAutomation = new LocalAutomationServer(
@@ -62,12 +65,26 @@ async function bootstrap(): Promise<void> {
     terminalSessionManager,
     preferencesStore,
     () => mainWindow,
-    appLogStore
+    appLogStore,
+    slotStateStore
   );
   localAutomationServer = localAutomation;
   artifactPublishService.initializeDefaults();
 
+  terminalSessionManager.on('session-updated', (session) => {
+    slotStateStore.recordSessionSummary(session);
+  });
+
+  terminalSessionManager.on('session-prompt-ready', ({ sessionId, occurredAt }) => {
+    slotStateStore.recordPromptReady(sessionId, occurredAt);
+  });
+
+  terminalSessionManager.on('session-write', ({ sessionId, data, source, occurredAt }) => {
+    slotStateStore.recordTerminalWrite(sessionId, data, source, occurredAt);
+  });
+
   terminalSessionManager.on('session-exit', ({ sessionId }) => {
+    slotStateStore.recordSessionExit(sessionId);
     terminalSlotService.handleSessionExit(sessionId);
     channelSessionRegistry.markSessionExited(sessionId);
   });
