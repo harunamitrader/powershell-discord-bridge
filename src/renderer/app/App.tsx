@@ -337,6 +337,15 @@ export function App() {
   }, [sessions]);
   const appLogText = useMemo(() => appLogs.map((entry) => entry.text).join(''), [appLogs]);
   const workspaceGridStyle = useMemo(() => createWorkspaceGridStyle(workspacePaneLayout), [workspacePaneLayout]);
+  const workspaceOverlayOpen = logsOpen || settingsOpen;
+
+  useEffect(() => {
+    if (!workspaceOverlayOpen || !activeDivider) {
+      return;
+    }
+
+    setActiveDivider(null);
+  }, [workspaceOverlayOpen, activeDivider]);
 
   function scheduleViewSnapshotPublish() {
     if (snapshotPublishTimerRef.current !== null) {
@@ -818,30 +827,34 @@ export function App() {
               </section>
             );
           })}
-          <div
-            className={activeDivider === 'vertical-left' ? 'terminal-grid__divider terminal-grid__divider--vertical terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--vertical'}
-            style={{ gridColumn: '2', gridRow: '1 / 4' }}
-            role="separator"
-            aria-label="Resize left and center columns"
-            aria-orientation="vertical"
-            onPointerDown={(event) => handleWorkspaceDividerPointerDown('vertical-left', event)}
-          />
-          <div
-            className={activeDivider === 'vertical-right' ? 'terminal-grid__divider terminal-grid__divider--vertical terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--vertical'}
-            style={{ gridColumn: '4', gridRow: '1 / 4' }}
-            role="separator"
-            aria-label="Resize center and right columns"
-            aria-orientation="vertical"
-            onPointerDown={(event) => handleWorkspaceDividerPointerDown('vertical-right', event)}
-          />
-          <div
-            className={activeDivider === 'horizontal' ? 'terminal-grid__divider terminal-grid__divider--horizontal terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--horizontal'}
-            style={{ gridColumn: '1 / 6', gridRow: '2' }}
-            role="separator"
-            aria-label="Resize top and bottom rows"
-            aria-orientation="horizontal"
-            onPointerDown={(event) => handleWorkspaceDividerPointerDown('horizontal', event)}
-          />
+          {!workspaceOverlayOpen ? (
+            <>
+              <div
+                className={activeDivider === 'vertical-left' ? 'terminal-grid__divider terminal-grid__divider--vertical terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--vertical'}
+                style={{ gridColumn: '2', gridRow: '1 / 4' }}
+                role="separator"
+                aria-label="Resize left and center columns"
+                aria-orientation="vertical"
+                onPointerDown={(event) => handleWorkspaceDividerPointerDown('vertical-left', event)}
+              />
+              <div
+                className={activeDivider === 'vertical-right' ? 'terminal-grid__divider terminal-grid__divider--vertical terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--vertical'}
+                style={{ gridColumn: '4', gridRow: '1 / 4' }}
+                role="separator"
+                aria-label="Resize center and right columns"
+                aria-orientation="vertical"
+                onPointerDown={(event) => handleWorkspaceDividerPointerDown('vertical-right', event)}
+              />
+              <div
+                className={activeDivider === 'horizontal' ? 'terminal-grid__divider terminal-grid__divider--horizontal terminal-grid__divider--active' : 'terminal-grid__divider terminal-grid__divider--horizontal'}
+                style={{ gridColumn: '1 / 6', gridRow: '2' }}
+                role="separator"
+                aria-label="Resize top and bottom rows"
+                aria-orientation="horizontal"
+                onPointerDown={(event) => handleWorkspaceDividerPointerDown('horizontal', event)}
+              />
+            </>
+          ) : null}
         </main>
       </div>
 
