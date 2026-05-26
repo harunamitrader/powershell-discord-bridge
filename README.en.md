@@ -42,8 +42,8 @@ You can watch six slots at once, send instructions to each slot from Discord, an
 - Return the tail of the **currently visible terminal text** with `!text N` / `!textN`
 - Watch the `discord-publish` folder under terminal 1's working directory and automatically upload newly created or updated files to a shared artifact channel
 - Accept additional input from Discord or the app while a request is already running
-- Also send plain text directly to slot1-slot6 from a local AI CLI or shell, activating the target slot first
-- Combine **slot-to-slot sends, text observation, and completion notifications** for AI handoff flows
+- Use bundled skill templates as a standard feature for **slot-to-slot sends, shared state checks, and visible-text reads**
+- Combine **slot-to-slot sends, state checks, visible-text reads, and opt-in completion callbacks** for AI handoff flows
 - Send scheduled prompts or commands to a chosen slot with **cron**
 - In the app terminal, use `Ctrl+C` to copy the current selection and `Ctrl+V` to paste clipboard text into the session
 - Let you watch the same live session from the app UI
@@ -215,44 +215,77 @@ Each slot terminal can be restarted with **Restart**.
 - Add `--notify-on-complete` when the requesting slot needs a completion callback
 - Use cron to send a recurring prompt to one specific slot
 
-### Advanced: Send text to a slot from a local AI CLI or shell
+### Standard feature: AI slot coordination and skill templates
 
-This is an **advanced local automation feature**. The normal workflow should still be **sending messages from Discord to each slot**.  
-But one of the main strengths of multicli-discord-bridge is that this local automation also enables **AI-to-AI handoff between slots**.
+multicli-discord-bridge treats **AI-to-AI slot coordination as a standard feature**.  
+The intended workflow is that **an AI uses it through skills**. End users are not expected to operate `slot:send` or `slot:observe` manually in normal use.
 
-The running Electron app now exposes a single **local-only automation endpoint** for the smallest possible AI handoff: send text to **slot1-slot6** or observe slot text without going through Discord. Those sends activate the target slot in the app first and automatically prepend a `[from: ...]` header to the delivered text.
+While the app is running, a local-only automation endpoint is available for three skill-level actions.
 
-```powershell
-npm run slot:send -- --slot slot3 --from human --text "Review this diff"
+#### The three bundled skill templates
+
+- **`multicli-discord-bridge-slot-send`**  
+  A send-only skill for delivering plain text into another slot. It can also omit Enter or request a completion callback, but **completion callbacks stay off by default**.
+- **`multicli-discord-bridge-slot-state`**  
+  A read-only skill for checking lightweight shared coordination state: `cwd`, `status`, `updatedAt`, `foregroundCommand`, and `recentInbound`.
+- **`multicli-discord-bridge-slot-text`**  
+  A read-only skill for fetching the **visible text** from a slot when shared state alone is not enough.
+
+The recommended flow is:
+
+1. use the **state skill** to see the overall situation
+2. use the **text skill** only for the slots that still need closer inspection
+3. use the **send skill** when the AI is ready to hand off or request work
+
+#### How to install them for Copilot
+
+1. Create these three folders:
+
+```text
+C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-send
+C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-state
+C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-text
 ```
 
-- `--slot` accepts `1-6` or `slot1-slot6`
-- `--from` is required and accepts `slot1-slot6`, `human`, `cron`, or `external:<label>`
-- If `--text` is omitted, the CLI reads from **stdin**
-- A `[from: ...]` header is prepended automatically on send
-- Add `--no-enter` to send the text without Enter
-- By default, the CLI waits a few seconds and returns a lightweight delivery verdict: `likely_delivered`, `uncertain`, or `likely_not_delivered`
-- Completion notifications are **off by default**, including skill-driven sends; add `--notify-on-complete --origin-slot slotN` only when needed
-- The command fails clearly when the Electron app is not running
+2. Copy the bundled templates from this repo into those folders as `SKILL.md`:
 
-For detailed usage and skill setup, see `docs\advanced-local-ai-slot-send.en.md`. The Copilot skill template is in `docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md`.
-
-For coordination-only reads, you can also use:
-
-```powershell
-npm run slot:observe -- --state
+```text
+docs\skill-templates\multicli-discord-bridge-slot-send\SKILL.md
+docs\skill-templates\multicli-discord-bridge-slot-state\SKILL.md
+docs\skill-templates\multicli-discord-bridge-slot-text\SKILL.md
 ```
 
-This reads `%APPDATA%\multicli-discord-bridge\coordination\slot-state.json`, which contains each slot's `cwd`, `status`, `updatedAt`, `foregroundCommand`, and `recentInbound`. `foregroundCommand` records only the **first Enter-submitted command after the last `promptReady`**.
+3. In each copied file, replace `<repo-path>` with the **local path of your multicli-discord-bridge clone**
 
-If you want to trigger that state check from natural language, use the separate Copilot template at `docs\skill-examples\multicli-discord-bridge-slot-state\SKILL.md`.
+They are bundled as templates because users differ in:
 
-```powershell
-@'
-multi-line prompt
-line 2
-'@ | node .\scripts\bridge-send-slot.cjs --slot slot4 --from human
-```
+- absolute repo path
+- Windows username
+- which AI CLI they actually run in each slot
+
+#### How to use the skills
+
+After installation, you can ask Copilot in natural language:
+
+- `Send "Review this diff" to slot3`
+- `Check the current state of all multiCLI slots`
+- `Get the visible text from slot4`
+- `Compare slot2 and slot5, then send the request to the better target`
+- `Ask slot3 to report back to slot2 when it is done`
+
+The AI can then combine the skills as needed:
+
+- read shared state with the state skill
+- inspect visible text with the text skill
+- send the actual request with the send skill
+
+That shared state is stored at `%APPDATA%\multicli-discord-bridge\coordination\slot-state.json` and includes each slot's `cwd`, `status`, `updatedAt`, `foregroundCommand`, and `recentInbound`. `foregroundCommand` records only the **first Enter-submitted command after the last `promptReady`**.
+
+#### About the underlying commands
+
+The coordination commands `slot:send` and `slot:observe` are meant to be **internal AI-facing commands**. Most users only need to install the skills and use natural-language requests.
+
+Only if you want to inspect the template internals or the AI-facing command contract, see `docs\ai-slot-coordination.en.md`.
 
 ### Common commands
 
@@ -289,7 +322,7 @@ If a normal text or control request is **still in progress after the configured 
 - `!replyformatcommand`: switch Discord replies to code block mode
 - `!replyformattext`: switch Discord replies to plain text mode
 
-`!text` only accepts `1-9500`, `!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting. In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters, repeated horizontal whitespace runs longer than 5 characters, and repeated line breaks longer than 5 are compressed down to 5. The requested `!text` count is based on this **post-compression reply length**. Long replies are split using the normal Discord reply chunking rules.
+`!text` only accepts `1-9500`, `!cols` only accepts `40-400`, and `!rows` only accepts `15-120`. Out-of-range or non-integer values return an error without changing the setting. In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, repeated symbol runs longer than 5 characters and repeated horizontal whitespace runs longer than 5 characters are compressed down to 5, and line-break runs of 3 or more are compressed down to 2. The requested `!text` count is based on this **post-compression reply length**. Long replies are split using the normal Discord reply chunking rules.
 
 When you attach **Discord files** to a normal message, the app saves them under `AppData\Roaming\...\multicli-discord-bridge\incoming-files\...` and prepends a comment block like this before sending the message to the terminal:
 

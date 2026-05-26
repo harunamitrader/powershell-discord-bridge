@@ -499,7 +499,7 @@ function compressDecorativeRuns(text: string): string {
       repeatCount = 1;
     }
 
-    if (!shouldCompressRepeatedCharacter(character) || repeatCount <= 5) {
+    if (!shouldCompressRepeatedCharacter(character) || repeatCount <= getMaxRepeatedCharacterCount(character)) {
       result += character;
     }
   }
@@ -509,6 +509,14 @@ function compressDecorativeRuns(text: string): string {
 
 function shouldCompressRepeatedCharacter(character: string): boolean {
   return !isComparableCharacter(character);
+}
+
+function getMaxRepeatedCharacterCount(character: string): number {
+  if (character === '\n') {
+    return 2;
+  }
+
+  return 5;
 }
 
 function wait(durationMs: number): Promise<void> {

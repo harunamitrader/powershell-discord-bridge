@@ -112,19 +112,19 @@ This project is designed not as a **public remote-management bot**, but as a **b
 - Repeated `!up` / `!down` / `!left` / `!right` inputs support `1-20` presses, with a default send interval of `100ms`
 - Files under `discord-publish` are automatically uploaded to the artifact channel on both create and update, and successful uploads send the file only
 - If a normal text or control request is still unfinished after the configured delay, the bridge sends one interim terminal screenshot as an additional progress reply together with a delay label such as `[inflight screenshot after 10s while running: terminal]`
-- In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, and repeated symbol runs longer than 5 characters, repeated horizontal whitespace runs longer than 5 characters, and repeated line breaks longer than 5 are compressed down to 5
+- In **both normal replies and `!text` replies**, visible text keeps **visual wrap boundaries as line breaks**, repeated symbol runs longer than 5 characters and repeated horizontal whitespace runs longer than 5 characters are compressed down to 5, and line-break runs of 3 or more are compressed down to 2
 - `!text` only accepts integers from `1-9500`, and uses that **post-compression reply length** before normal reply chunking is applied
-- Separate from Discord, an **advanced local automation feature** accepts the minimal `slot + from + text + optional Enter` request shape through a local-only automation endpoint, activating the target slot in the app before sending and automatically prepending a `[from: ...]` header
+- Separate from Discord, a **standard AI slot-coordination feature** accepts AI-facing `slot + from + text + optional Enter` sends through a local-only automation endpoint, activating the target slot in the app before sending and automatically prepending a `[from: ...]` header
 - Those sends now return a lightweight **delivery likelihood check** with `likely_delivered`, `uncertain`, or `likely_not_delivered`
 - Those sends can also opt into a sender-slot task-complete callback with `notifyOnComplete`, but the default stays **off**, including skill-driven sends
-- Only when requested by the user, local automation can also fetch coordination slot-state JSON, visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
+- Only when AI coordination or user confirmation requires it, local automation can also fetch coordination slot-state JSON, visible slot text, slot screenshots (`!ss` equivalent), and an app window screenshot (`!wss` equivalent)
 
 ## 6. Safety-related behavior
 
 - The bot starts only when `DISCORD_BOT_TOKEN` is set
 - Allowed users are restricted by `ALLOW_USER_IDS`
 - `ALLOW_GUILD_ID` is required and restricts operation to **exactly one** guild
-- The local automation endpoint is available only while the Electron app is running and can be reached with `npm run slot:send -- --slot slot3 --from human --text "..."` or `node .\scripts\bridge-send-slot.cjs --slot slot3 --from human`. `--from` is required and the delivered text automatically gets a `[from: ...]` header. For skill setup examples, see `docs\advanced-local-ai-slot-send.en.md` and `docs\skill-examples\multicli-discord-bridge-slot-send\SKILL.md`
+- The local automation endpoint is available only while the Electron app is running and is mainly intended for AI skills. `--from` is required and the delivered text automatically gets a `[from: ...]` header. For the AI-facing contract, see `docs\ai-slot-coordination.en.md`; for bundled templates, see `docs\skill-templates\`
 - Delayed inflight screenshots are enabled by default and can be changed in seconds through `preferences.json` with `bridgeSettings.inflightScreenshotOnRunningRequest` and `bridgeSettings.timing.inflightScreenshotDelaySeconds`
 - If you use automatic slot/artifact channel creation or channel renaming, the bot needs the Discord **Manage Channels** permission
 - Each slot stores its Discord channel ID and reconnects to the same channel after restart

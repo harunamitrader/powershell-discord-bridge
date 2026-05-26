@@ -5,7 +5,10 @@ description: Read coordination state for slot1-slot6 of the running multicli-dis
 
 # multicli-discord-bridge slot state
 
-Use this skill when the user wants to inspect the current shared coordination state of the running `multicli-discord-bridge` app without sending text.
+Before using this template:
+
+1. Copy it to `C:\Users\<your-user>\.copilot\skills\multicli-discord-bridge-slot-state\SKILL.md`
+2. Replace `<repo-path>` with your local clone path
 
 ## Scope
 
@@ -17,7 +20,7 @@ Use this skill when the user wants to inspect the current shared coordination st
 
 ## Repository
 
-`C:\Users\sgmxk\Desktop\AI\repos\github\harunamitrader\multicli-discord-bridge`
+`<repo-path>`
 
 ## Primary commands
 
@@ -57,26 +60,10 @@ node .\scripts\bridge-observe.cjs --slot slot3 --state
 - when the user asks what each slot is doing
 - when the user asks for recent inbound context across slots
 
-## When not to use this skill
+## When to switch to another skill
 
-- when the user only wants text sent to a known slot
-- when the user explicitly wants raw visible terminal text instead of shared state
-- when the user explicitly wants screenshots
-
-## Optional follow-up inspection
-
-If slot-state is not enough and the user needs raw terminal text, use:
-
-```powershell
-npm run slot:observe -- --slot slot3 --text
-```
-
-If the user explicitly asks for screenshots, use:
-
-```powershell
-npm run slot:observe -- --slot slot3 --screenshot
-npm run slot:observe -- --window-screenshot
-```
+- If raw visible terminal text is needed, switch to **`multicli-discord-bridge-slot-text`**.
+- If the task is to actually inject text into another slot, switch to **`multicli-discord-bridge-slot-send`**.
 
 ## Rules
 
@@ -84,4 +71,3 @@ npm run slot:observe -- --window-screenshot
 2. Prefer `--state` first over per-slot text reads when the task is coordination-oriented.
 3. If one target slot is enough, prefer `--slot slotN --state` over reading all slots.
 4. Treat `foregroundCommand` as recorded state only; do not reinterpret it as a guaranteed runtime identity.
-5. If raw screen content is required, explicitly switch to `slot:observe -- --slot ... --text`.
