@@ -17,6 +17,7 @@ import type {
   TerminalSessionActivatedEvent,
   TerminalAutomationTurnResult,
   TerminalControlKey,
+  TerminalSlotInboundKind,
   TerminalSessionRenameRequest,
   TerminalSessionSummary,
   TerminalSlotId,
@@ -74,6 +75,7 @@ const HARD_TIMEOUT_UNLIMITED_ENABLED_REPLY = '[hard timeout: unlimited]';
 const ATTACHMENTS_UNSUPPORTED_REPLY = '[attachments rejected: attachments are only supported on regular text messages]';
 const ARTIFACT_CHANNEL_NAME = 'terminal-artifacts';
 const ARTIFACT_CHANNEL_TOPIC = 'multicli-discord-bridge watched file uploads.';
+const CRON_MESSAGE_CHUNK_LIMIT = 1900;
 const REPEATED_ARROW_MIN_COUNT = 1;
 const REPEATED_ARROW_MAX_COUNT = 20;
 const TEXT_COMMAND_MIN_CHARS = 1;
@@ -131,6 +133,22 @@ interface ProcessingLogEntry {
 
 interface RequestContext {
   message: Message;
+}
+
+interface DispatchParsedMessageRequest {
+  message: Message;
+  slotId: TerminalSlotId;
+  parsed: ParsedBridgeMessage;
+  requestUserId: string;
+  inboundKind: TerminalSlotInboundKind;
+  inboundFrom: string;
+  attachmentBatch?: SavedDiscordAttachmentBatch;
+}
+
+interface CronDispatchRequest {
+  name: string;
+  slotId: TerminalSlotId;
+  content: string;
 }
 
 interface DelayedInflightScreenshotHandle {
@@ -385,6 +403,30 @@ export class DiscordBridgeService {
     });
   }
 
+  async runCronJob(request: CronDispatchRequest): Promise<void> {
+    const channel = await this.getBoundSlotChannel(request.slotId);
+    const message = await this.sendCronStartMessage(channel, request);
+    const parsed = parseBridgeMessage(request.content, this.client?.user?.id);
+    if (parsed.kind === 'ignore') {
+      return;
+    }
+
+    if (parsed.kind === 'error') {
+      await this.tryAddReaction(message, REACTION_REJECTED);
+      await this.sendReplies(message, this.formatReplyText(parsed.message));
+      return;
+    }
+
+    await this.dispatchParsedMessage({
+      message,
+      slotId: request.slotId,
+      parsed,
+      requestUserId: `cron:${request.name}`,
+      inboundKind: 'cron',
+      inboundFrom: `cron:${request.name}`
+    });
+  }
+
   private async handleMessage(message: Message): Promise<void> {
     if (message.author.bot) {
       return;
@@ -444,80 +486,15 @@ export class DiscordBridgeService {
       return;
     }
 
-    if (parsed.kind === 'text' && parsed.content.trim().length > 0) {
-      this.slotStateStore?.recordInbound(slot.slotId, {
-        timestamp: message.createdAt.toISOString(),
-        from: `discord:${message.author.id}`,
-        kind: 'discord',
-        text: parsed.content
-      });
-    }
-
-    const binding = this.channelSessionRegistry.getBinding(message.channelId);
-    if (binding && shouldActivateTerminalForMessage(parsed)) {
-      this.emitSessionActivated(binding.sessionId);
-    }
-
-    if (parsed.kind === 'stop') {
-      await this.handleStopCommand(message);
-      return;
-    }
-
-    if (parsed.kind === 'force-stop') {
-      await this.handleForceStopCommand(message, slot.slotId);
-      return;
-    }
-
-    if (parsed.kind === 'help') {
-      await this.handleHelpCommand(message);
-      return;
-    }
-
-    if (parsed.kind === 'restart-terminal') {
-      await this.handleRestartTerminalCommand(message, slot.slotId);
-      return;
-    }
-
-    if (parsed.kind === 'redraw') {
-      await this.handleRedrawCommand(message, slot.slotId);
-      return;
-    }
-
-    if (parsed.kind === 'restart-app') {
-      await this.handleRestartAppCommand(message);
-      return;
-    }
-
-    if (parsed.kind === 'settings') {
-      await this.handleSettingsCommand(message, parsed);
-      return;
-    }
-
-    if (parsed.kind === 'visible-text') {
-      await this.handleVisibleTextCommand(message, slot.slotId, parsed.maxChars);
-      return;
-    }
-
-    if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed) && !attachmentBatch) {
-      await this.handleBusyPassthroughMessage(message, binding.sessionId, parsed);
-      return;
-    }
-
-    const enqueueResult = this.channelSessionRegistry.enqueue({
-      channelId: message.channelId,
-      kind: parsed.kind,
-      userId: message.author.id,
-      messageId: message.id,
-      content: parsed.kind === 'text' ? parsed.content : undefined,
-      attachmentBatch,
-      appendEnter: parsed.kind === 'text' ? parsed.appendEnter : undefined,
-      controlKey: parsed.kind === 'control' ? parsed.key : undefined,
-      controlRepeatCount: parsed.kind === 'control' ? parsed.repeatCount : undefined,
-      expectOutput: parsed.expectOutput
+    await this.dispatchParsedMessage({
+      message,
+      slotId: slot.slotId,
+      parsed,
+      requestUserId: message.author.id,
+      inboundKind: 'discord',
+      inboundFrom: `discord:${message.author.id}`,
+      attachmentBatch
     });
-
-    this.requestContexts.set(enqueueResult.request.requestId, { message });
-    await this.handleEnqueueResult(enqueueResult);
   }
 
   private async handleEnqueueResult(result: EnqueueRequestResult): Promise<void> {
@@ -552,6 +529,88 @@ export class DiscordBridgeService {
 
     await this.tryAddReaction(context.message, REACTION_PROCESSING);
     void this.processRequest(result.binding.channelId, result.request);
+  }
+
+  private async dispatchParsedMessage(request: DispatchParsedMessageRequest): Promise<void> {
+    const { message, slotId, parsed, requestUserId, inboundKind, inboundFrom, attachmentBatch } = request;
+    if (parsed.kind === 'text' && parsed.content.trim().length > 0) {
+      this.slotStateStore?.recordInbound(slotId, {
+        timestamp: message.createdAt.toISOString(),
+        from: inboundFrom,
+        kind: inboundKind,
+        text: parsed.content
+      });
+    }
+
+    const binding = this.channelSessionRegistry.getBinding(message.channelId);
+    if (binding && shouldActivateTerminalForMessage(parsed)) {
+      this.emitSessionActivated(binding.sessionId);
+    }
+
+    if (parsed.kind === 'stop') {
+      await this.handleStopCommand(message);
+      return;
+    }
+
+    if (parsed.kind === 'force-stop') {
+      await this.handleForceStopCommand(message, slotId);
+      return;
+    }
+
+    if (parsed.kind === 'help') {
+      await this.handleHelpCommand(message);
+      return;
+    }
+
+    if (parsed.kind === 'restart-terminal') {
+      await this.handleRestartTerminalCommand(message, slotId);
+      return;
+    }
+
+    if (parsed.kind === 'redraw') {
+      await this.handleRedrawCommand(message, slotId);
+      return;
+    }
+
+    if (parsed.kind === 'restart-app') {
+      await this.handleRestartAppCommand(message);
+      return;
+    }
+
+    if (parsed.kind === 'settings') {
+      await this.handleSettingsCommand(message, parsed);
+      return;
+    }
+
+    if (parsed.kind === 'visible-text') {
+      await this.handleVisibleTextCommand(message, slotId, parsed.maxChars);
+      return;
+    }
+
+    if (binding?.status === 'busy' && isBusyPassthroughMessage(parsed) && !attachmentBatch) {
+      await this.handleBusyPassthroughMessage(message, binding.sessionId, parsed);
+      return;
+    }
+
+    if (!isBusyPassthroughMessage(parsed)) {
+      return;
+    }
+
+    const enqueueResult = this.channelSessionRegistry.enqueue({
+      channelId: message.channelId,
+      kind: parsed.kind,
+      userId: requestUserId,
+      messageId: message.id,
+      content: parsed.kind === 'text' ? parsed.content : undefined,
+      attachmentBatch,
+      appendEnter: parsed.kind === 'text' ? parsed.appendEnter : undefined,
+      controlKey: parsed.kind === 'control' ? parsed.key : undefined,
+      controlRepeatCount: parsed.kind === 'control' ? parsed.repeatCount : undefined,
+      expectOutput: parsed.expectOutput
+    });
+
+    this.requestContexts.set(enqueueResult.request.requestId, { message });
+    await this.handleEnqueueResult(enqueueResult);
   }
 
   private async handleStopCommand(message: Message): Promise<void> {
@@ -1262,6 +1321,25 @@ export class DiscordBridgeService {
     console.info(`Bound slot ${slotId} to Discord channel ${finalChannelId}.`);
   }
 
+  private async getBoundSlotChannel(slotId: TerminalSlotId): Promise<TextChannel> {
+    if (!this.client?.isReady()) {
+      throw new Error('Discord bridge client is not ready.');
+    }
+
+    await this.ensureSlotBinding(slotId);
+    const slot = this.terminalSlotService.getSlot(slotId);
+    if (!slot.channelId) {
+      throw new Error(`No Discord channel is bound for slot ${slotId}.`);
+    }
+
+    const channel = await this.fetchGuildTextChannel(slot.channelId);
+    if (!channel) {
+      throw new Error(`Bound Discord channel ${slot.channelId} for slot ${slotId} is not available.`);
+    }
+
+    return channel;
+  }
+
   private getLiveSessionForSlot(slotId: TerminalSlotId): TerminalSessionSummary | undefined {
     const sessionId = this.terminalSlotService.getSessionIdForSlot(slotId);
     if (!sessionId) {
@@ -1373,6 +1451,33 @@ export class DiscordBridgeService {
         source: 'discord'
       });
     }
+  }
+
+  private async sendCronStartMessage(channel: TextChannel, request: CronDispatchRequest): Promise<Message> {
+    const chunks = splitDiscordMessageText(buildCronStartMessage(request), CRON_MESSAGE_CHUNK_LIMIT);
+    const firstChunk = chunks.shift();
+    if (!firstChunk) {
+      throw new Error(`Failed to build cron start message for ${request.name}.`);
+    }
+
+    const message = await channel.send({
+      content: firstChunk,
+      allowedMentions: {
+        parse: []
+      }
+    });
+
+    for (const chunk of chunks) {
+      await message.reply({
+        content: chunk,
+        allowedMentions: {
+          repliedUser: false,
+          parse: []
+        }
+      });
+    }
+
+    return message;
   }
 
 }
@@ -1794,6 +1899,46 @@ function buildTerminalRequestContent(request: BridgeRequestRecord): string {
 
 function buildAttachmentSavedReply(batch: SavedDiscordAttachmentBatch): string {
   return `[attachments saved: ${batch.count} files]`;
+}
+
+function buildCronStartMessage(request: CronDispatchRequest): string {
+  const header = `[cron start: ${request.name} -> slot${request.slotId}]`;
+  const trimmedContent = request.content.trim();
+  return trimmedContent.length > 0 ? `${header}\n${trimmedContent}` : header;
+}
+
+function splitDiscordMessageText(text: string, maxChunkLength: number): string[] {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let current = '';
+
+  for (const line of lines) {
+    const next = current.length === 0 ? line : `${current}\n${line}`;
+    if (next.length <= maxChunkLength) {
+      current = next;
+      continue;
+    }
+
+    if (current.length > 0) {
+      result.push(current);
+      current = '';
+    }
+
+    if (line.length <= maxChunkLength) {
+      current = line;
+      continue;
+    }
+
+    for (let index = 0; index < line.length; index += maxChunkLength) {
+      result.push(line.slice(index, index + maxChunkLength));
+    }
+  }
+
+  if (current.length > 0) {
+    result.push(current);
+  }
+
+  return result.length > 0 ? result : [''];
 }
 
 function toAttachmentLogEntry(batch: SavedDiscordAttachmentBatch | undefined): Pick<

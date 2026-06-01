@@ -109,7 +109,7 @@ async function bootstrap(): Promise<void> {
 
   terminalSlotService.ensureSessions();
   localAutomation.start();
-  const cronScheduler = new CronJobScheduler(terminalAutomationService, terminalSlotService, appLogStore);
+  const cronScheduler = new CronJobScheduler(discordBridgeService, appLogStore);
   cronJobScheduler = cronScheduler;
   cronScheduler.start();
 

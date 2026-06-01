@@ -4,9 +4,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { app } from 'electron';
 import * as nodeCron from 'node-cron';
 import type { AppLogStore } from '../app/appLogStore';
-import type { TerminalSlotService } from '../app/terminalSlotService';
-import { formatInterSlotMessage } from '../automation/interSlotMessage';
-import type { TerminalAutomationService } from '../bridge/terminalAutomationService';
+import type { DiscordBridgeService } from '../bridge/discordBridgeService';
 import type { TerminalSlotId } from '../../shared/terminal';
 
 const CRON_JOBS_DIR = process.env['CRON_JOBS_DIR'] ?? path.join(app.getAppPath(), 'cron-jobs');
@@ -26,8 +24,7 @@ export class CronJobScheduler {
   private watcher?: FSWatcher;
 
   constructor(
-    private readonly terminalAutomationService: TerminalAutomationService,
-    private readonly terminalSlotService: TerminalSlotService,
+    private readonly discordBridgeService: DiscordBridgeService,
     private readonly appLogStore?: AppLogStore
   ) {}
 
@@ -135,15 +132,12 @@ export class CronJobScheduler {
   private async executeJob(job: CronJobConfig): Promise<void> {
     this.log(`executing name=${job.name} slot=${job.slot}`);
     try {
-      const session = this.terminalSlotService.ensureSession(job.slot);
-      const deliveredText = formatInterSlotMessage('cron', job.text);
-      await this.terminalAutomationService.sendInput({
-        sessionId: session.id,
-        content: deliveredText,
-        appendEnter: true,
-        source: 'automation'
+      await this.discordBridgeService.runCronJob({
+        name: job.name,
+        slotId: job.slot,
+        content: job.text
       });
-      this.log(`done name=${job.name} slot=${job.slot} deliveredTextLength=${deliveredText.length}`);
+      this.log(`done name=${job.name} slot=${job.slot} deliveredTextLength=${job.text.length}`);
     } catch (error) {
       this.log(`failed name=${job.name} slot=${job.slot} error=${formatError(error)}`);
     }

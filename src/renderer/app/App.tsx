@@ -96,7 +96,7 @@ const MAX_INFLIGHT_SCREENSHOT_DELAY_SECONDS = MAX_TIMING_DELAY_MS / 1000;
 const MIN_DIFF_ANCHOR_CHARS = 50;
 const MAX_DIFF_ANCHOR_CHARS = 5000;
 const MAX_RENDERED_APP_LOGS = 2000;
-const SLOT_LAYOUT_ORDER: TerminalSlotId[] = [1, 2, 5, 3, 4, 6];
+const SLOT_LAYOUT_ORDER: TerminalSlotId[] = [1, 3, 5, 2, 4, 6];
 const WORKSPACE_DIVIDER_SIZE_PX = 10;
 const WORKSPACE_PADDING_PX = 10;
 const MIN_WORKSPACE_COLUMN_SIZE_PX = 220;
@@ -1756,6 +1756,7 @@ export function App() {
                       </label>
                     </div>
                   </div>
+
                 </div>
               </section>
 

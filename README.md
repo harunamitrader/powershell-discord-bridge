@@ -413,7 +413,9 @@ Get-Location
 
 ### Cron スケジュール機能
 
-Bridge が起動している間、内蔵の Cron デーモンが **リポジトリ直下の `cron-jobs\`** を監視します。JSON ファイルを置くだけで、指定した時刻に自動的に slot へテキストを送信します。`CRON_JOBS_DIR` を設定した場合だけ、その保存先を上書きできます。
+Bridge が起動している間、内蔵の Cron デーモンが **リポジトリ直下の `cron-jobs\`** を監視します。JSON ファイルを置くだけで、指定した時刻に **その slot の Discord チャンネルへ cron 開始メッセージを投稿し、そのメッセージを起点に通常の Discord 送信と同じ経路で実行** します。`CRON_JOBS_DIR` を設定した場合だけ、その保存先を上書きできます。
+
+つまり cron ジョブは通常の Discord 投稿を内部的に cron に置き換えた扱いになり、`!ss` / `!wss` / `!text` / `!stop` / settings 系コマンドも同じように動きます。auto screenshot が ON の slot では、完了時のスクリーンショット返信も通常の Discord 送信と同じように付きます。
 
 ジョブの追加・編集・削除は同梱の TUI ツールで行います。
 

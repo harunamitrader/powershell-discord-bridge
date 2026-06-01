@@ -27,7 +27,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 ### 4.1 Channels and sessions
 
 - The app window shows **six fixed PowerShell sessions**
-- Each pane is a fixed slot, arranged in two rows as `slot1 / slot2 / slot5` and `slot3 / slot4 / slot6`
+- Each pane is a fixed slot, arranged in two rows as `slot1 / slot3 / slot5` on top and `slot2 / slot4 / slot6` on the bottom
 - The runtime model is **1 Discord channel = 1 slot = 1 PowerShell session**
 - Messages sent to the same channel go to the same slot session
 - If additional text or control input arrives while a reply is still being generated, that input is injected directly into the running session instead of being queued
@@ -58,7 +58,7 @@ This project is designed not as a **public remote-management bot**, but as a **b
 ### 4.4 Cron-scheduled sends
 
 - While the bridge is running, the built-in cron daemon watches the **repository-local `cron-jobs\` directory**
-- Putting job definitions in `cron-jobs\*.json` schedules automatic text sends to the target slot at the configured times
+- Putting job definitions in `cron-jobs\*.json` posts a cron start message in the target slot's Discord channel and runs that message through the same path as a normal Discord request
 - The bundled `bridge-cron-tui` helper can manage those job files
 - Setting `CRON_JOBS_DIR` overrides the default `cron-jobs\` location
 

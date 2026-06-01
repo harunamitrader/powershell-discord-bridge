@@ -409,7 +409,9 @@ Check these points:
 
 ## Cron scheduling
 
-While the bridge is running, the built-in cron daemon watches the **repository-local `cron-jobs\` directory**. Dropping JSON files there is enough to schedule automatic text sends to a target slot. Only when `CRON_JOBS_DIR` is set does it override that default location.
+While the bridge is running, the built-in cron daemon watches the **repository-local `cron-jobs\` directory**. Dropping JSON files there is enough to schedule a cron start message in the target slot's Discord channel, and that message is then executed through the same bridge path as a normal Discord-origin request. Only when `CRON_JOBS_DIR` is set does it override that default location.
+
+In practice, cron jobs behave like normal Discord sends with the sender replaced by cron, so `!ss`, `!wss`, `!text`, `!stop`, and settings commands follow the same rules. If auto screenshot is enabled for that slot, the completion screenshot reply is attached the same way as a normal Discord request.
 
 Use the bundled TUI to add, edit, delete, and toggle jobs:
 

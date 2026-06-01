@@ -12,7 +12,7 @@
 - Copilot 用の `multicli-discord-bridge-slot-text` skill テンプレート
 - AI slot 連携の標準機能ドキュメント `docs\ai-slot-coordination.md` / `docs\ai-slot-coordination.en.md`
 - 6固定 slot を 1 ウィンドウ内で表示し、右側に slot5 / slot6 用の半幅列を追加
-- `slot:send` / cron 送信に、`[from: ...]` ヘッダー付きの送信元ラベルを付ける仕組み
+- `slot:send` に、`[from: ...]` ヘッダー付きの送信元ラベルを付ける仕組み
 - `!rst` / `!rsa` / `!ss` / `!wss` の省略コマンド
 - `!hardtimeout`, `!hardtimeoutunlimited`, `!hardtimeoutoff` コマンド
 - `!cols`, `!rows` で bridge dimensions を確認・変更するコマンド
@@ -45,6 +45,7 @@
 
 ### Changed
 
+- 6 slot の表示順と Settings 内の Per slot 表示順を、左列 `slot1 / slot2`・中央列 `slot3 / slot4`・右列 `slot5 / slot6` に変更
 - `multicli-discord-bridge` の Copilot skill 同梱を `docs\skill-examples` から `docs\skill-templates` に整理し、send / state / text の 3 分割に変更
 - `multicli-discord-bridge-slot-send` skill は送信専用とし、連携判断は state skill、visible text 取得は text skill を使う前提に整理
 - ローカル UI の pane / settings 表記を `P1` 形式から `slot1` 形式へ変更
@@ -61,6 +62,7 @@
 - busy 中でもローカル UI から入力できるよう変更
 - 通常の text 送信前待機を延長し、before-send 再描画後・snapshot 後・Enter 前の各間隔を広げて Copilot/TUI への入力反映を待ちやすく変更
 - Discord からの text / control 入力前には、アプリウィンドウが非アクティブまたは最小化なら best-effort で復元・前面化してから送るよう変更
+- Cron ジョブ実行は、対象 slot の Discord チャンネルに開始メッセージを出して通常の Discord リクエスト経路へ流すよう変更し、reply / busy passthrough / auto screenshot を共通化
 - Settings の Global セクションを機能別グループに整理し、説明文を English に統一
 - interactive CLI の完了判定は、Gemini 固有の TUI マーカーではなく汎用の prompt / output / idle 信号を優先するよう変更
 - hard timeout 到達時は自動リセットせず、timeout 応答だけ返す仕様に変更
